@@ -12,6 +12,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.config import Config
 from core.logger import setup_logger
+from modules.memory import Memory
+from modules.ai_handler import AIHandler
+from modules.commands import CommandHandler
 
 # Configuração do logger
 logger = setup_logger(__name__)
@@ -21,141 +24,71 @@ class DiscordBot:
         self.config = Config()
         self.token = self.config.get_token()
         
-        # Configuração de intents para o bot
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
         
-        # Inicialização do bot com prefixo de comando
         self.bot = commands.Bot(command_prefix=self.config.get_prefix(), intents=intents)
         
-        # Módulos do bot (serão inicializados sob demanda)
-        self._modules = {}
+        # Inicializa os módulos na ordem correta de dependência
+        self.memory = Memory(self.config)
+        self.db = self.memory.db  # Acessa a instância do DB a partir da memória
+        self.ai_handler = AIHandler(self.config, self.db)
+        self.command_handler = CommandHandler(self.bot, self.config, self.memory, self.ai_handler, self.db)
+
+        self.interaction_counter = 0
+        self.summary_threshold = 10
         
-        # Registrar eventos
         self.register_events()
         
     def register_events(self):
         @self.bot.event
         async def on_ready():
             logger.info(f'Bot conectado como {self.bot.user.name}')
-            logger.info(f'ID do Bot: {self.bot.user.id}')
-            logger.info('------')
-            
+
         @self.bot.event
         async def on_message(message):
-            # Ignora mensagens do próprio bot
             if message.author == self.bot.user:
                 return
-                
-            # Processa comandos
-            await self.bot.process_commands(message)
             
-            # Lógica para responder a menções ou palavras-chave
-            await self._handle_message_response(message)
+            ctx = await self.bot.get_context(message)
+            if ctx.valid:
+                await self.bot.process_commands(message)
+            else:
+                await self._handle_message_response(message)
     
     async def _handle_message_response(self, message):
-        """Processa mensagens para responder a menções ou palavras-chave"""
-        # Verifica se o bot foi mencionado
         was_mentioned = self.bot.user in message.mentions
-        
-        # Verifica se a mensagem contém a palavra-chave configurada
         keyword = self.config.get_config_value('bot_keyword', '')
         contains_keyword = keyword and keyword.lower() in message.content.lower()
         
-        # Se o bot foi mencionado ou a palavra-chave foi detectada
         if was_mentioned or contains_keyword:
-            # Inicializa os módulos necessários sob demanda
-            if 'memory' not in self._modules:
-                from modules.memory import Memory
-                self._modules['memory'] = Memory(self.config)
-            
-            if 'ai_handler' not in self._modules:
-                from modules.ai_handler import AIHandler
-                self._modules['ai_handler'] = AIHandler(self.config)
-            
-            if 'search_engine' not in self._modules:
-                from modules.search import SearchEngine
-                self._modules['search_engine'] = SearchEngine(self.config)
-            
-            if 'time_handler' not in self._modules:
-                from modules.time_handler import TimeHandler
-                self._modules['time_handler'] = TimeHandler(self.config)
-            
-            if 'command_handler' not in self._modules:
-                from modules.commands import CommandHandler
-                self._modules['command_handler'] = CommandHandler(
-                    self.bot,
-                    self.config,
-                    self._modules['memory'],
-                    self._modules['ai_handler'],
-                    self._modules['search_engine']
-                )
-            
-            # Adiciona a mensagem à memória
-            self._modules['memory'].add_message(message.author.id, message.author.name, message.content)
-            
-            # Remove a menção do bot da mensagem, se presente
-            user_message = message.content
-            if was_mentioned:
-                user_message = user_message.replace(f'<@{self.bot.user.id}>', '').strip()
+            async with message.channel.typing():
+                user_message = message.content.replace(f'<@{self.bot.user.id}>', '').strip()
                 
-            # Verifica se a mensagem contém gatilhos para armazenar na memória de longo prazo
-            memory_triggered = self._modules['ai_handler'].detect_memory_triggers(user_message, self._modules['memory'])
-            if memory_triggered:
-                await message.add_reaction('💾')  # Adiciona uma reação para indicar que a informação foi armazenada
-            
-            # Obtém o contexto da conversa da memória (combinando memória de curto e longo prazo)
-            context = self._modules['memory'].get_combined_memory()
-            
-            # Obtém a personalidade configurada do bot
-            bot_personality = self.config.get_config_value('bot_personality', '')
-            
-            # Formata o prompt com a personalidade do bot
-            formatted_prompt = self._modules['ai_handler'].format_prompt(user_message, bot_personality)
-            
-            # Gera a resposta usando o LM Studio (método assíncrono)
-            response = await self._modules['ai_handler'].generate_response(formatted_prompt, context)
-            
-            # Processa a resposta para melhorar a inteligibilidade
-            processed_response = self._modules['ai_handler'].process_response(response)
-            
-            # Adiciona a resposta do bot à memória
-            self._modules['memory'].add_message(self.bot.user.id, self.bot.user.name, processed_response, is_bot=True)
-            
-            # Envia a resposta
-            await message.channel.send(processed_response)
-            logger.info(f"Respondeu a uma mensagem de {message.author.name}")
+                self.memory.add_message(message.author.id, message.author.name, user_message)
+
+                if self.ai_handler.detect_memory_triggers(user_message, self.memory):
+                    await message.add_reaction('💾')
+
+                context = self.memory.get_combined_memory(user_message)
+
+                response = await self.ai_handler.generate_response(user_message, context, user_id=message.author.id)
+
+                self.memory.add_message(self.bot.user.id, self.bot.user.name, response, is_bot=True)
+
+                await message.channel.send(response)
+
+                self.interaction_counter += 1
+                if self.interaction_counter >= self.summary_threshold:
+                    self.interaction_counter = 0
+                    conversation = self.memory.get_recent_messages(limit=self.summary_threshold * 2)
+                # Executa a extração de fatos e a análise de relacionamento em paralelo
+                await asyncio.gather(
+                    self.ai_handler.extract_and_memorize_facts(conversation, self.memory),
+                    self.ai_handler.analyze_and_update_relationship(message.author.id, conversation)
+                )
     
-    def load_commands(self):
-        """Carrega os módulos e comandos do bot"""
-        # Inicializa todos os módulos necessários
-        if 'memory' not in self._modules:
-            from modules.memory import Memory
-            self._modules['memory'] = Memory(self.config)
-        
-        if 'ai_handler' not in self._modules:
-            from modules.ai_handler import AIHandler
-            self._modules['ai_handler'] = AIHandler(self.config)
-        
-        if 'search_engine' not in self._modules:
-            from modules.search import SearchEngine
-            self._modules['search_engine'] = SearchEngine(self.config)
-        
-        if 'time_handler' not in self._modules:
-            from modules.time_handler import TimeHandler
-            self._modules['time_handler'] = TimeHandler(self.config)
-        
-        if 'command_handler' not in self._modules:
-            from modules.commands import CommandHandler
-            self._modules['command_handler'] = CommandHandler(
-                self.bot,
-                self.config,
-                self._modules['memory'],
-                self._modules['ai_handler'],
-                self._modules['search_engine']
-            )
-        
     def run(self):
         try:
             logger.info("Iniciando o bot...")
@@ -163,10 +96,8 @@ class DiscordBot:
         except Exception as e:
             logger.error(f"Erro ao iniciar o bot: {e}")
             
-# Função para iniciar o bot
 def start_bot():
     bot = DiscordBot()
-    bot.load_commands()
     bot.run()
     
 if __name__ == "__main__":

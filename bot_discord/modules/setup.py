@@ -15,12 +15,13 @@ logger = logging.getLogger(__name__)
 class SetupWizard:
     """Assistente de configuração interativa para o bot via Discord"""
     
-    def __init__(self, bot, config, command_handler):
+    def __init__(self, bot, config, command_handler, db):
         self.bot = bot
         self.config = config
         self.command_handler = command_handler
+        self.db = db
         self.active_setups = {}
-        self.timeout = 120  # Tempo em segundos para timeout da configuração
+        self.timeout = 120
         
         # Etapas de configuração disponíveis
         self.setup_steps = [

@@ -22,19 +22,20 @@ class Config:
         
         # Configurações padrão
         self.default_config = {
-            "prefix": "!",  # Prefixo padrão para comandos
-            "memory_limit": 25,  # Número de mensagens para lembrar
-            "memory_persistence": True,  # Persistência de memória
-            "ai_model": "default",  # Modelo de IA padrão
-            "search_enabled": False,  # Busca na web desativada por padrão
-            "log_level": "INFO",  # Nível de log padrão
-            "bot_keyword": "",  # Palavra-chave para acionar o bot (vazio = apenas menções)
-            "bot_personality": "assistente amigável",  # Personalidade padrão do bot
-            "timezone_offset": -3,  # Fuso horário (Brasil: UTC-3)
-            "locale": "pt_BR",  # Localização para formatação de datas
-            "time_awareness": True,  # Habilita consciência temporal nas respostas
-            "moderation_enabled": False,  # Moderação automática desativada por padrão
-            "notifications_enabled": False  # Notificações desativadas por padrão
+            "prefix": "!",
+            "memory_limit": 25,
+            "memory_persistence": True,
+            "ai_model": "default",
+            "search_enabled": False,
+            "log_level": "INFO",
+            "bot_keyword": "",
+            "active_personality_name": "default", # Nome da personalidade ativa
+            "bot_personality": "assistente amigável", # Descrição da personalidade padrão
+            "timezone_offset": -3,
+            "locale": "pt_BR",
+            "time_awareness": True,
+            "moderation_enabled": False,
+            "notifications_enabled": False
         }
         
         # Carrega ou cria configurações
