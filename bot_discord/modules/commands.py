@@ -22,7 +22,7 @@ class CommandHandler:
         self.custom_commands = {}
         
         # Assistente de configuração interativa
-        from modules.setup import SetupWizard
+        from bot_discord.modules.setup import SetupWizard
         self.setup_wizard = SetupWizard(bot, config, self)
         
         # Registra os comandos no bot
@@ -496,6 +496,22 @@ class CommandHandler:
         if not self.custom_commands:
             await ctx.send("ℹ️ Não há comandos personalizados registrados.")
             return
+
+        embed = discord.Embed(
+            title="🤖 Comandos Personalizados",
+            description=f"Lista de comandos personalizados disponíveis. Use `{self.config.get_prefix()}comando_add` para adicionar novos comandos.",
+            color=discord.Color.blue()
+        )
+
+        # Adiciona cada comando ao embed
+        for cmd_name, cmd_data in self.custom_commands.items():
+            embed.add_field(
+                name=f"{self.config.get_prefix()}{cmd_name}",
+                value=f"Resposta: {cmd_data['response'][:50]}{'...' if len(cmd_data['response']) > 50 else ''}",
+                inline=False
+            )
+
+        await ctx.send(embed=embed)
             
     async def _remember_command(self, ctx, query=None):
         """Recupera uma informação específica da memória de longo prazo"""
@@ -636,23 +652,6 @@ class CommandHandler:
         except Exception as e:
             logger.error(f"Erro ao limpar memória de longo prazo: {e}")
             await ctx.send("⏱️ Tempo esgotado ou ocorreu um erro. Operação cancelada.")
-        
-        # Cria um embed para listar os comandos
-        embed = discord.Embed(
-            title="🤖 Comandos Personalizados",
-            description=f"Lista de comandos personalizados disponíveis. Use `{self.config.get_prefix()}comando_add` para adicionar novos comandos.",
-            color=discord.Color.blue()
-        )
-        
-        # Adiciona cada comando ao embed
-        for cmd_name, cmd_data in self.custom_commands.items():
-            embed.add_field(
-                name=f"{self.config.get_prefix()}{cmd_name}",
-                value=f"Resposta: {cmd_data['response'][:50]}{'...' if len(cmd_data['response']) > 50 else ''}",
-                inline=False
-            )
-        
-        await ctx.send(embed=embed)
     
     def _save_custom_commands(self):
         """Salva os comandos personalizados em um arquivo JSON"""
