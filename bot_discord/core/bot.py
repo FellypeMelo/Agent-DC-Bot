@@ -115,7 +115,11 @@ class DiscordBot:
             formatted_prompt = self._modules['ai_handler'].format_prompt(user_message, bot_personality)
             
             # Gera a resposta usando o LM Studio (método assíncrono)
-            response = await self._modules['ai_handler'].generate_response(formatted_prompt, context)
+            response = await self._modules['ai_handler'].generate_response(
+                prompt=user_message,
+                personality=bot_personality,
+                context=context
+            )
             
             # Processa a resposta para melhorar a inteligibilidade
             processed_response = self._modules['ai_handler'].process_response(response)
