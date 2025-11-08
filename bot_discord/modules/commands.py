@@ -158,7 +158,7 @@ class CommandHandler:
         
         commands_embed.add_field(
             name=f"{prefix}config [param] [valor]",
-            value=f"Configura parâmetros do bot.\n\nExemplos:\n• `{prefix}config prefix !` - Altera o prefixo para !\n• `{prefix}config memory_limit 50` - Define o limite de memória\n• `{prefix}config search_enabled true` - Ativa a busca na web\n• `{prefix}config memory_persistence false` - Desativa a persistência",
+            value=f"Configura parâmetros do bot.\n\nExemplos:\n• `{prefix}config prefix !` - Altera o prefixo para !\n• `{prefix}config memory_limit 50` - Define o limite de memória\n• `{prefix}config memory_persistence false` - Desativa a persistência",
             inline=False
         )
         
@@ -186,11 +186,6 @@ class CommandHandler:
             inline=False
         )
         
-        commands_embed.add_field(
-            name=f"{prefix}buscar [consulta]",
-            value="Busca informações na web sobre o tópico especificado\nExemplo: `{prefix}buscar clima em São Paulo`",
-            inline=False
-        )
         
         commands_embed.add_field(
             name=f"{prefix}personalidade [descrição]",
@@ -254,11 +249,6 @@ class CommandHandler:
             inline=False
         )
         
-        config_embed.add_field(
-            name="🔍 Sistema de Busca",
-            value=f"Ative a busca na web com `{prefix}config search_enabled true` e use o comando `{prefix}buscar` para pesquisar informações online.",
-            inline=False
-        )
         
         config_embed.add_field(
             name="🤖 Comandos Personalizados",

@@ -109,7 +109,7 @@ class DiscordBot:
             context = self._modules['memory'].get_combined_memory()
             
             # Obtém a personalidade configurada do bot
-            bot_personality = self.config.get_config_value('bot_personality', '')
+            bot_personality = self._modules['memory'].get_permanent_info('personality')
             
             # Formata o prompt com a personalidade do bot
             formatted_prompt = self._modules['ai_handler'].format_prompt(user_message, bot_personality)
