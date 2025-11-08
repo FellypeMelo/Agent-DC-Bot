@@ -111,10 +111,7 @@ class DiscordBot:
             # Obtém a personalidade configurada do bot
             bot_personality = self._modules['memory'].get_permanent_info('personality')
             
-            # Formata o prompt com a personalidade do bot
-            formatted_prompt = self._modules['ai_handler'].format_prompt(user_message, bot_personality)
-            
-            # Gera a resposta usando o LM Studio (método assíncrono)
+            # Gera a resposta usando a nova lógica do AIHandler
             response = await self._modules['ai_handler'].generate_response(
                 prompt=user_message,
                 personality=bot_personality,

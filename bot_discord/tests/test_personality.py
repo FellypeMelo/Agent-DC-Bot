@@ -56,8 +56,13 @@ class TestPersonality(unittest.IsolatedAsyncioTestCase):
         await bot_instance._handle_message_response(message)
 
         # Assert
-        # Check if the AI handler's format_prompt method was called with the correct personality
-        ai_handler_instance.format_prompt.assert_called_with(message.content.replace(f'<@{bot_instance.bot.user.id}>', '').strip(), personality)
+        # Check if the AI handler's generate_response method was called with the correct arguments
+        user_message = message.content.replace(f'<@{bot_instance.bot.user.id}>', '').strip()
+        ai_handler_instance.generate_response.assert_called_with(
+            prompt=user_message,
+            personality=personality,
+            context=memory_instance.get_combined_memory()
+        )
 
 if __name__ == '__main__':
     unittest.main()
