@@ -37,11 +37,20 @@ class AIHandler:
         if temperature is not None:
             self.temperature = temperature
         
-    async def generate_response(self, prompt, context=None):
+    async def generate_response(self, prompt, personality=None, context=None):
         """Gera uma resposta usando o LM Studio com cache e timeout"""
         try:
             # Prepara o contexto para o modelo
             messages = []
+
+            # Adiciona a personalidade como uma instrução de sistema (se existir)
+            if personality:
+                system_prompt = (
+                    f"{personality}\n\n"
+                    "**Diretriz de Roleplay:** Use formatação Markdown (*itálico* para pensamentos e sussuros, "
+                    "**negrito** para ações e ênfase) para tornar suas respostas mais imersivas e expressivas."
+                )
+                messages.append({"role": "system", "content": system_prompt})
             
             # Adiciona contexto se fornecido
             if context:
@@ -145,12 +154,6 @@ class AIHandler:
             self.response_cache.pop(next(iter(self.response_cache)))
             
         logger.debug(f"Cache atualizado. Tamanho atual: {len(self.response_cache)}")
-    
-    def format_prompt(self, user_message, bot_personality=None):
-        """Formata o prompt com a personalidade do bot"""
-        if bot_personality:
-            return f"[Personalidade: {bot_personality}]\n\nUsuário: {user_message}"
-        return user_message
     
     def process_response(self, response):
         """Processa a resposta do modelo para melhorar a inteligibilidade"""
