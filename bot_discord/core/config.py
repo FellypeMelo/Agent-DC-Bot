@@ -10,65 +10,30 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    def __init__(self, config_path=None):
+    def __init__(self, db=None):
         self.logger = logging.getLogger(__name__)
-        
-        # Caminho para o arquivo de configuração
-        self.config_path = config_path or os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'data',
-            'config.json'
-        )
+        self.db = db
+        self.base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         
         # Configurações padrão
         self.default_config = {
-            "prefix": "!",  # Prefixo padrão para comandos
-            "memory_limit": 25,  # Número de mensagens para lembrar
-            "memory_persistence": True,  # Persistência de memória
-            "ai_model": "default",  # Modelo de IA padrão
-            "search_enabled": False,  # Busca na web desativada por padrão
-            "log_level": "INFO",  # Nível de log padrão
-            "bot_keyword": "",  # Palavra-chave para acionar o bot (vazio = apenas menções)
-            "bot_personality": "assistente amigável",  # Personalidade padrão do bot
-            "timezone_offset": -3,  # Fuso horário (Brasil: UTC-3)
-            "locale": "pt_BR",  # Localização para formatação de datas
-            "time_awareness": True,  # Habilita consciência temporal nas respostas
-            "moderation_enabled": False,  # Moderação automática desativada por padrão
-            "notifications_enabled": False  # Notificações desativadas por padrão
+            "prefix": os.getenv('BOT_PREFIX', '!'),
+            "memory_limit": 25,
+            "memory_persistence": True,
+            "ai_model": "llama-3",
+            "use_ollama": os.getenv('USE_OLLAMA', 'false').lower() == 'true',
+            "lm_studio_api_url": os.getenv('LM_STUDIO_API_URL', 'http://localhost:1234/v1'),
+            "ollama_api_url": os.getenv('OLLAMA_API_URL', 'http://localhost:11434/v1'),
+            "ollama_model": os.getenv('OLLAMA_MODEL', 'ministral-3:3b'),
+            "model_path": os.getenv('LLM_MODEL_PATH', os.path.join(self.base_path, "data", "models", "model.gguf")),
+            "device": os.getenv('DEVICE', 'xpu'),
+            "search_enabled": False,
+            "log_level": "INFO",
+            "bot_keyword": "bro",
+            "bot_personality": "casual e amigável",
+            "moderation_enabled": False,
         }
         
-        # Carrega ou cria configurações
-        self.config = self.load_config()
-        
-    def load_config(self):
-        """Carrega configurações do arquivo ou cria um novo se não existir"""
-        try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            else:
-                # Cria o diretório se não existir
-                os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-                
-                # Cria o arquivo de configuração com valores padrão
-                with open(self.config_path, 'w', encoding='utf-8') as f:
-                    json.dump(self.default_config, f, indent=4)
-                    
-                return self.default_config
-        except Exception as e:
-            self.logger.error(f"Erro ao carregar configurações: {e}")
-            return self.default_config
-    
-    def save_config(self):
-        """Salva as configurações atuais no arquivo"""
-        try:
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=4)
-            return True
-        except Exception as e:
-            self.logger.error(f"Erro ao salvar configurações: {e}")
-            return False
-    
     def get_token(self):
         """Obtém o token do Discord das variáveis de ambiente"""
         token = os.getenv('DISCORD_TOKEN')
@@ -77,28 +42,28 @@ class Config:
         return token
     
     def get_prefix(self):
-        """Obtém o prefixo de comando atual"""
-        return self.config.get("prefix", self.default_config["prefix"])
-    
-    def set_prefix(self, prefix):
-        """Define um novo prefixo de comando"""
-        self.config["prefix"] = prefix
-        return self.save_config()
+        # Como o bot.py precisa do prefixo ANTES de conectar o DB para o commands.Bot, 
+        # vamos manter o prefixo no .env ou um fallback fixo por enquanto.
+        return os.getenv('BOT_PREFIX', '!')
     
     def get_memory_limit(self):
-        """Obtém o limite de memória atual"""
-        return self.config.get("memory_limit", self.default_config["memory_limit"])
-    
-    def set_memory_limit(self, limit):
-        """Define um novo limite de memória"""
-        self.config["memory_limit"] = limit
-        return self.save_config()
+        return 25 # Fallback fixo
     
     def get_config_value(self, key, default=None):
-        """Obtém um valor de configuração específico"""
-        return self.config.get(key, default or self.default_config.get(key))
-    
-    def set_config_value(self, key, value):
-        """Define um valor de configuração específico"""
-        self.config[key] = value
-        return self.save_config()
+        """Obtém um valor de configuração. Nota: Este método agora deve ser preferencialmente async, 
+        mas para manter compatibilidade síncrona onde necessário, usamos fallbacks."""
+        return self.default_config.get(key, default)
+
+    async def get_config_db(self, key, default=None):
+        """Versão assíncrona que busca no banco de dados."""
+        if not self.db:
+            return self.get_config_value(key, default)
+        val = await self.db.get_setting(key)
+        return val if val is not None else self.get_config_value(key, default)
+
+    async def set_config_db(self, key, value):
+        """Versão assíncrona que salva no banco de dados."""
+        if self.db:
+            await self.db.set_setting(key, value)
+            return True
+        return False

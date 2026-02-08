@@ -105,4 +105,12 @@ venv.bak/
 .DS_Store
 
 # Project specific
+bot_discord/.env
+bot_discord/data/*.json
+bot_discord/data/*.db
+bot_discord/data/tts/
+bot_discord/data/models/
+bot_discord/data/.cache/
+bot_discord/logs/
 data/memory.json
+*.log

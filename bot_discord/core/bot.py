@@ -1,174 +1,203 @@
 # bot.py
-# Inicialização do bot e conexão com Discord
-
 import discord
 from discord.ext import commands
 import os
 import sys
 import logging
+import json
 
-# Adiciona o diretório raiz ao path para importações relativas
+# Adiciona o diretório raiz ao path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.config import Config
 from core.logger import setup_logger
+from core.database import DatabaseManager
+from core.voice_engine import VoiceEngine
 
-# Configuração do logger
 logger = setup_logger(__name__)
 
 class DiscordBot:
     def __init__(self):
-        self.config = Config()
-        self.token = self.config.get_token()
-        
-        # Configuração de intents para o bot
-        intents = discord.Intents.default()
-        intents.message_content = True
-        intents.members = True
-        
-        # Inicialização do bot com prefixo de comando
-        self.bot = commands.Bot(command_prefix=self.config.get_prefix(), intents=intents)
-        
-        # Módulos do bot (serão inicializados sob demanda)
+        self.db = DatabaseManager()
+        self.config = Config(self.db)
+        self.voice_engine = VoiceEngine(self.config)
+        self.bot = None
         self._modules = {}
-        
-        # Registrar eventos
-        self.register_events()
-        
+
     def register_events(self):
         @self.bot.event
         async def on_ready():
-            logger.info(f'Bot conectado como {self.bot.user.name}')
-            logger.info(f'ID do Bot: {self.bot.user.id}')
-            logger.info('------')
+            if not self.db._db:
+                await self.db.connect()
+            logger.info(f'--- Bot Online: {self.bot.user.name} (ID: {self.bot.user.id}) ---')
+            logger.info(f'Prefixo ativo: {self.bot.command_prefix}')
             
         @self.bot.event
         async def on_message(message):
-            # Ignora mensagens do próprio bot
             if message.author == self.bot.user:
                 return
-                
-            # Processa comandos
+            
+            # Processa comandos primeiro
             await self.bot.process_commands(message)
             
-            # Lógica para responder a menções ou palavras-chave
+            # Lógica de conversação (IA)
             await self._handle_message_response(message)
-    
-    async def _handle_message_response(self, message):
-        """Processa mensagens para responder a menções ou palavras-chave"""
-        # Verifica se o bot foi mencionado
-        was_mentioned = self.bot.user in message.mentions
-        
-        # Verifica se a mensagem contém a palavra-chave configurada
-        keyword = self.config.get_config_value('bot_keyword', '')
-        contains_keyword = keyword and keyword.lower() in message.content.lower()
-        
-        # Se o bot foi mencionado ou a palavra-chave foi detectada
-        if was_mentioned or contains_keyword:
-            # Inicializa os módulos necessários sob demanda
-            if 'memory' not in self._modules:
-                from modules.memory import Memory
-                self._modules['memory'] = Memory(self.config)
-            
-            if 'ai_handler' not in self._modules:
-                from modules.ai_handler import AIHandler
-                self._modules['ai_handler'] = AIHandler(self.config)
-            
-            if 'search_engine' not in self._modules:
-                from modules.search import SearchEngine
-                self._modules['search_engine'] = SearchEngine(self.config)
-            
-            if 'time_handler' not in self._modules:
-                from modules.time_handler import TimeHandler
-                self._modules['time_handler'] = TimeHandler(self.config)
-            
-            if 'command_handler' not in self._modules:
-                from modules.commands import CommandHandler
-                self._modules['command_handler'] = CommandHandler(
-                    self.bot,
-                    self.config,
-                    self._modules['memory'],
-                    self._modules['ai_handler'],
-                    self._modules['search_engine']
-                )
-            
-            # Adiciona a mensagem à memória
-            self._modules['memory'].add_message(message.author.id, message.author.name, message.content)
-            
-            # Remove a menção do bot da mensagem, se presente
-            user_message = message.content
-            if was_mentioned:
-                user_message = user_message.replace(f'<@{self.bot.user.id}>', '').strip()
-                
-            # Verifica se a mensagem contém gatilhos para armazenar na memória de longo prazo
-            memory_triggered = self._modules['ai_handler'].detect_memory_triggers(user_message, self._modules['memory'])
-            if memory_triggered:
-                await message.add_reaction('💾')  # Adiciona uma reação para indicar que a informação foi armazenada
-            
-            # Obtém o contexto da conversa da memória (combinando memória de curto e longo prazo)
-            context = self._modules['memory'].get_combined_memory()
-            
-            # Obtém a personalidade configurada do bot
-            bot_personality = self._modules['memory'].get_permanent_info('personality')
-            
-            # Gera a resposta usando a nova lógica do AIHandler
-            response = await self._modules['ai_handler'].generate_response(
-                prompt=user_message,
-                personality=bot_personality,
-                context=context
-            )
-            
-            # Processa a resposta para melhorar a inteligibilidade
-            processed_response = self._modules['ai_handler'].process_response(response)
-            
-            # Adiciona a resposta do bot à memória
-            self._modules['memory'].add_message(self.bot.user.id, self.bot.user.name, processed_response, is_bot=True)
-            
-            # Envia a resposta
-            await message.channel.send(processed_response)
-            logger.info(f"Respondeu a uma mensagem de {message.author.name}")
-    
-    def load_commands(self):
-        """Carrega os módulos e comandos do bot"""
-        # Inicializa todos os módulos necessários
-        if 'memory' not in self._modules:
-            from modules.memory import Memory
-            self._modules['memory'] = Memory(self.config)
-        
-        if 'ai_handler' not in self._modules:
-            from modules.ai_handler import AIHandler
-            self._modules['ai_handler'] = AIHandler(self.config)
-        
-        if 'search_engine' not in self._modules:
-            from modules.search import SearchEngine
-            self._modules['search_engine'] = SearchEngine(self.config)
-        
-        if 'time_handler' not in self._modules:
-            from modules.time_handler import TimeHandler
-            self._modules['time_handler'] = TimeHandler(self.config)
-        
-        if 'command_handler' not in self._modules:
-            from modules.commands import CommandHandler
-            self._modules['command_handler'] = CommandHandler(
-                self.bot,
-                self.config,
-                self._modules['memory'],
-                self._modules['ai_handler'],
-                self._modules['search_engine']
-            )
-        
-    def run(self):
+
+    async def load_modules(self):
+        """Carrega todos os Cogs de forma explícita."""
         try:
-            logger.info("Iniciando o bot...")
-            self.bot.run(self.token)
-        except Exception as e:
-            logger.error(f"Erro ao iniciar o bot: {e}")
+            from modules.memory import Memory
+            from modules.ai_handler import AIHandler
+            from modules.voice_client import VoiceHandler
+            from modules.setup import CharacterWizard
+            from modules.commands import CommandHandler
+
+            # 1. Base
+            self._modules['memory'] = Memory(self.config, self.db)
+            self._modules['ai_handler'] = AIHandler(self.config)
+            await self._modules['ai_handler'].initialize()
+
+            # 2. Registrar Cogs no Discord (Pycord add_cog is synchronous)
+            self.bot.add_cog(VoiceHandler(self.bot, self.voice_engine))
+            self.bot.add_cog(CharacterWizard(self.bot, self.db, self._modules['ai_handler'], self.voice_engine, self._modules['memory']))
+            self.bot.add_cog(CommandHandler(self.bot, self.config, self._modules['memory'], self._modules['ai_handler']))
             
-# Função para iniciar o bot
-def start_bot():
-    bot = DiscordBot()
-    bot.load_commands()
-    bot.run()
-    
+            # 3. Carregar DNA de voz ativo
+            # self.db.connect() já deve ter sido chamado no runner
+            async with self.db._db.execute("SELECT voice_dna FROM character_profiles WHERE is_active = 1") as cursor:
+                row = await cursor.fetchone()
+                if row and row[0]:
+                    await self.voice_engine.load_dna(row[0])
+                    logger.info("DNA de voz carregado.")
+
+            logger.info("Todos os módulos carregados com sucesso.")
+        except Exception as e:
+            logger.error(f"Erro crítico no carregamento de módulos: {e}", exc_info=True)
+
+    async def _handle_message_response(self, message):
+        """Lógica de resposta da IA (Menção ou Keyword)"""
+        # Se a mensagem foi um comando (começa com o prefixo), ignoramos a resposta automática de IA
+        if message.content.startswith(self.bot.command_prefix):
+            return
+
+        was_mentioned = self.bot.user in message.mentions
+        keyword = await self.config.get_config_db('bot_keyword', 'blepp')
+        contains_keyword = keyword.lower() in message.content.lower()
+
+        if was_mentioned or contains_keyword:
+            logger.info(f"IA ativada por {message.author.name} (Mention: {was_mentioned}, Keyword: {contains_keyword})")
+            
+            # Limpa o texto
+            user_message = message.content.replace(f'<@{self.bot.user.id}>', '').replace(f'<@!{self.bot.user.id}>', '').strip()
+            
+            # Se não houver canal (raro), não podemos mostrar typing mas podemos processar
+            typing_ctx = message.channel.typing() if message.channel else None
+            
+            try:
+                if typing_ctx:
+                    await typing_ctx.__aenter__()
+
+                # Contexto e Memória
+                context_data = await self._modules['memory'].get_context(message.author.id, query_text=user_message)
+                base_personality = await self._get_active_profile_prompt()
+                
+                logger.debug(f"Gerando resposta para: {user_message}")
+                # Geração Stream
+                response_gen = self._modules['ai_handler'].generate_response_stream(
+                    prompt=user_message,
+                    personality=base_personality,
+                    context=context_data['history']
+                )
+                
+                full_response = ""
+                sent_msg = None
+                async for chunk in response_gen:
+                    full_response += chunk
+                    # Só tenta enviar texto se houver um canal real
+                    if message.channel:
+                        if not sent_msg and len(full_response) > 5:
+                            try:
+                                sent_msg = await message.channel.send(full_response)
+                            except: pass
+                        elif sent_msg and len(full_response) % 40 == 0: 
+                            try:
+                                await sent_msg.edit(content=full_response)
+                            except: pass
+                
+                if not full_response:
+                    full_response = "Desculpe, não consegui pensar em nada."
+
+                if sent_msg: 
+                    try: await sent_msg.edit(content=full_response)
+                    except: pass
+                elif message.channel:
+                    try: await message.channel.send(full_response)
+                    except: pass
+
+                logger.info(f"Resposta gerada ({len(full_response)} chars).")
+
+                # Resposta por Voz
+                if message.guild and message.guild.voice_client:
+                    logger.debug("Encaminhando resposta para VoiceHandler...")
+                    voice_cog = self.bot.get_cog("VoiceHandler")
+                    if voice_cog:
+                        processed_text, sentiment = self._modules['ai_handler'].extract_sentiment(full_response)
+                        await voice_cog.speak(processed_text, sentiment=sentiment, vc=message.guild.voice_client)
+                    else:
+                        logger.warning("VoiceHandler cog não encontrado!")
+
+            except Exception as e:
+                logger.error(f"Erro ao processar resposta: {e}", exc_info=True)
+            finally:
+                if typing_ctx:
+                    await typing_ctx.__aexit__(None, None, None)
+
+    async def _get_active_profile_prompt(self):
+        try:
+            async with self.db._db.execute("SELECT identity_json, personality_json FROM character_profiles WHERE is_active = 1") as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    id_p = json.loads(row[0])
+                    pers_p = json.loads(row[1])
+                    return f"Você é {id_p.get('name')}. Personalidade: {pers_p.get('traits')}"
+            return "Você é um assistente útil."
+        except:
+            return "Você é um assistente útil."
+
+    def run(self):
+        token = self.config.get_token()
+        
+        async def runner():
+            # Initialize Bot inside the loop to avoid "future belongs to different loop" errors
+            intents = discord.Intents.default()
+            intents.message_content = True
+            intents.members = True
+            
+            prefix = os.getenv('COMMAND_PREFIX', '-')
+            self.bot = commands.Bot(command_prefix=prefix, intents=intents, help_command=None)
+            self.bot.owner_instance = self
+            self.register_events()
+
+            # Connect DB first
+            await self.db.connect()
+            
+            # Load modules
+            await self.load_modules()
+            
+            try:
+                logger.info("Tentando conectar ao Discord...")
+                await self.bot.start(token)
+            except Exception as e:
+                logger.error(f"Erro fatal no bot.start: {e}", exc_info=True)
+            finally:
+                if not self.bot.is_closed():
+                    await self.bot.close()
+
+        import asyncio
+        try:
+            asyncio.run(runner())
+        except KeyboardInterrupt:
+            pass
+
 if __name__ == "__main__":
-    start_bot()
+    DiscordBot().run()
