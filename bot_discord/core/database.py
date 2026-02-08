@@ -4,7 +4,6 @@
 import aiosqlite
 import logging
 import os
-import json
 import numpy as np
 from datetime import datetime
 

@@ -1,9 +1,7 @@
 # commands.py
 import discord
 from discord.ext import commands
-import os
 import json
-import time
 import psutil
 from core.logger import setup_logger
 
@@ -15,7 +13,6 @@ class CommandHandler(commands.Cog):
         self.config = config
         self.memory = memory
         self.ai = ai_handler
-        self.start_time = time.time()
 
     @commands.command(name='ajuda', aliases=['help'])
     async def ajuda(self, ctx):

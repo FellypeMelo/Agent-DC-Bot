@@ -1,7 +1,6 @@
 # memory.py
 # Sistema de memória e persistência
 
-import os
 import logging
 from datetime import datetime
 from core.embeddings import EmbeddingManager

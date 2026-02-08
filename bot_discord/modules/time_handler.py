@@ -1,12 +1,11 @@
 # time_handler.py
 # Sistema de gerenciamento de tempo e datas
 
-import datetime
 import logging
 import json
 import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 # Configuração do logger
 logger = logging.getLogger(__name__)
