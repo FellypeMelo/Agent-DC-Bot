@@ -1,6 +1,5 @@
 # voice_client.py
 import discord
-import logging
 import asyncio
 import io
 import numpy as np

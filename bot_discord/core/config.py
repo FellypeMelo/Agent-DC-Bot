@@ -1,7 +1,6 @@
 # config.py
 # Configuração de variáveis globais
 
-import json
 import os
 import logging
 from dotenv import load_dotenv
