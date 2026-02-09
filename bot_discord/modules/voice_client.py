@@ -20,10 +20,10 @@ class RealTimeWhisperSink(discord.sinks.Sink):
         self.user_buffers = {} # userId -> list of audio chunks
         self.user_last_speech = {} # userId -> timestamp
         self.SILENCE_TIMEOUT = 1.2 # Segundos de silêncio para processar a frase
-        self.VAD_WINDOW_SIZE = 512 # Silero VAD preferred size
+        self.VAD_WINDOW_SIZE = 1024 # Increased window size for lower overhead (approx 64ms)
         
         # Buffer interno para VAD (16k mono)
-        self.vad_buffers = {} # userId -> np.array
+        self.vad_buffers = {} # userId -> bytearray
         
         # Watchdog para silêncio (Discord para de enviar pacotes quando ninguém fala)
         self.watchdog_task = asyncio.run_coroutine_threadsafe(
@@ -58,20 +58,27 @@ class RealTimeWhisperSink(discord.sinks.Sink):
         """
         if user_id not in self.user_buffers:
             self.user_buffers[user_id] = []
-            self.vad_buffers[user_id] = np.array([], dtype=np.int16)
+            self.vad_buffers[user_id] = bytearray()
             self.user_last_speech[user_id] = 0
 
         # 1. Converter para Mono 16k para o VAD e Whisper
         pcm_data = np.frombuffer(data, dtype=np.int16)
         mono_16k = pcm_data[0::6] 
         
-        # 2. Alimentar buffer de VAD
-        self.vad_buffers[user_id] = np.concatenate((self.vad_buffers[user_id], mono_16k))
+        # 2. Alimentar buffer de VAD (Efficient bytearray extension instead of np.concatenate)
         
         # 3. Processar VAD em janelas
-        while len(self.vad_buffers[user_id]) >= self.VAD_WINDOW_SIZE:
-            chunk = self.vad_buffers[user_id][:self.VAD_WINDOW_SIZE]
-            self.vad_buffers[user_id] = self.vad_buffers[user_id][self.VAD_WINDOW_SIZE:]
+        # Window size in bytes = samples * 2 (int16)
+        window_bytes = self.VAD_WINDOW_SIZE * 2
+
+        while len(self.vad_buffers[user_id]) >= window_bytes:
+            # Extract window bytes
+            chunk_bytes = self.vad_buffers[user_id][:window_bytes]
+            # Efficient in-place deletion
+            del self.vad_buffers[user_id][:window_bytes]
+
+            # Convert only the window to numpy for VAD
+            chunk = np.frombuffer(chunk_bytes, dtype=np.int16)
             
             # Ajuste de sensibilidade: threshold 0.6 para evitar ruído de fundo
             if self.handler.voice_engine.vad and self.handler.voice_engine.vad.is_speech(chunk, threshold=0.6):
