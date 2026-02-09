@@ -47,6 +47,27 @@ class BargeInEngine:
             logger.error(f"Failed to load Silero VAD library: {e}", exc_info=True)
             self.model = None
 
+    def _energy_based_vad(self, audio_chunk: np.ndarray, threshold: float = 0.015) -> bool:
+        """
+        Fallback VAD based on RMS energy.
+        """
+        try:
+            # Calculate Root Mean Square
+            if audio_chunk.dtype == np.int16:
+                # Normalize int16 to -1.0 to 1.0 range for consistency
+                # Use mean of squares on int32 to avoid overflow, then sqrt, then normalize?
+                # Faster: convert to float only if needed.
+                # Let's stick to simple float conversion for clarity and correctness
+                chunk_float = audio_chunk.astype('float32') / 32768.0
+            else:
+                chunk_float = audio_chunk
+
+            rms = np.sqrt(np.mean(chunk_float**2))
+            print(f"Energy VAD: RMS={rms:.4f} Threshold={threshold}"); print(f"Energy VAD: RMS={rms:.4f} Threshold={threshold}"); return rms > threshold
+        except Exception as e:
+            logger.error(f"Energy VAD error: {e}")
+            return False
+
     def is_speech(self, audio_chunk: np.ndarray, threshold: float = 0.5) -> bool:
         """
         Detects if speech is present in the chunk.
@@ -54,8 +75,8 @@ class BargeInEngine:
         Big(O): O(1) real-time inference.
         """
         if self.model is None:
-            logger.debug("VAD model not loaded, cannot detect speech.")
-            return False
+            # Fallback to Energy-based VAD
+            return self._energy_based_vad(audio_chunk)
         
         try:
             import torch
@@ -79,7 +100,8 @@ class BargeInEngine:
             return is_speech_detected
         except Exception as e:
             logger.error(f"VAD Inference error: {e}")
-            return False
+            # Fallback on error too
+            return self._energy_based_vad(audio_chunk)
 
 class VoiceEngine:
     """
@@ -296,20 +318,27 @@ class VoiceEngine:
             if sr != 48000:
                 logger.debug(f"[AUDIO] Resampling {sr}Hz -> 48000Hz...")
                 num_samples = int(len(samples) * 48000 / sr)
+                # Optimization: Use float32 for interpolation indices
                 audio = np.interp(
-                    np.linspace(0, len(samples), num_samples),
-                    np.arange(len(samples)),
+                    np.linspace(0, len(samples), num_samples, dtype=np.float32),
+                    np.arange(len(samples), dtype=np.float32),
                     samples
                 )
             else:
                 audio = samples
 
-            # Stereo interleaving
+            # Stereo interleaving (Optimized: Convert to Int16 first)
             logger.debug("[AUDIO] Convertendo Mono -> Stereo Interleaved...")
-            audio_stereo = np.stack((audio, audio), axis=-1).flatten()
             
-            # Convert to Int16 PCM
-            final_pcm = (audio_stereo * 32767).astype(np.int16).tobytes()
+            # Scale and cast to int16 once (Mono)
+            audio_int16 = (audio * 32767).astype(np.int16)
+
+            # Interleave into pre-allocated stereo buffer
+            audio_stereo = np.empty(len(audio_int16) * 2, dtype=np.int16)
+            audio_stereo[0::2] = audio_int16
+            audio_stereo[1::2] = audio_int16
+
+            final_pcm = audio_stereo.tobytes()
             logger.info(f"✅ [SÍNTESE COMPLETA] {len(final_pcm)} bytes preparados.")
             return final_pcm
 
@@ -347,10 +376,18 @@ class VoiceEngine:
             
             if sr != 48000:
                 num_samples = int(len(audio) * 48000 / sr)
-                audio = np.interp(np.linspace(0, len(audio), num_samples), np.arange(len(audio)), audio)
+                audio = np.interp(
+                    np.linspace(0, len(audio), num_samples, dtype=np.float32),
+                    np.arange(len(audio), dtype=np.float32),
+                    audio
+                )
             
-            audio_stereo = np.stack((audio, audio), axis=-1).flatten()
-            return (audio_stereo * 32767).astype(np.int16).tobytes()
+            # Optimized Stereo Mix
+            audio_int16 = (audio * 32767).astype(np.int16)
+            audio_stereo = np.empty(len(audio_int16) * 2, dtype=np.int16)
+            audio_stereo[0::2] = audio_int16
+            audio_stereo[1::2] = audio_int16
+            return audio_stereo.tobytes()
         except Exception as e:
             logger.error(f"Qwen TTS Error: {e}")
             return None
