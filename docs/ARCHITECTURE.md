@@ -87,7 +87,7 @@ sequenceDiagram
 ### **Core (`bot_discord/core/`)**
 *   **`bot.py`**: Ponto de entrada. Gerencia eventos do Discord e carrega extensões.
 *   **`database.py`**: Abstração do SQLite (`aiosqlite`). Gerencia todas as queries e conexões.
-*   **`voice_engine.py`**: Wrapper para modelos de IA de áudio (Whisper, Kokoro, Qwen). Gerencia carregamento/descarregamento de VRAM.
+*   **`voice_engine.py`**: Wrapper para modelos de IA de áudio (Whisper, Kokoro). Gerencia carregamento/descarregamento de VRAM.
 *   **`llm_provider.py`**: Cliente para API do LM Studio.
 
 ### **Modules (`bot_discord/modules/`)**

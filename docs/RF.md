@@ -10,7 +10,7 @@ Este documento lista todas as funcionalidades que o sistema oferece, baseadas na
 | **RF02** | Saída do Canal de Voz | O bot deve sair do canal de voz e liberar recursos ao receber o comando `!leave`. |
 | **RF03** | Detecção de Atividade de Voz (VAD) | O sistema deve detectar quando um usuário está falando e ignorar silêncio ou ruído de fundo (Threshold 0.6). |
 | **RF04** | Transcrição de Áudio (STT) | O áudio capturado dos usuários deve ser convertido em texto usando o modelo **Whisper (Tiny)** para baixa latência. |
-| **RF05** | Síntese de Fala (TTS) | O bot deve converter suas respostas textuais em áudio usando dois motores: **Kokoro** (Modo Rápido) ou **Qwen-TTS** (Modo Qualidade). |
+| **RF05** | Síntese de Fala (TTS) | O bot deve converter suas respostas textuais em áudio usando o motor **Kokoro** (Otimizado para Português). |
 | **RF06** | Interrupção (Barge-In) | O bot deve parar de falar imediatamente se detectar que o usuário começou a falar enquanto ele ainda está reproduzindo áudio. |
 | **RF07** | Reprodução Stereo 48kHz | O áudio gerado deve ser processado e enviado ao Discord no formato Stereo 48kHz (padrão de alta qualidade). |
 
@@ -22,7 +22,6 @@ Este documento lista todas as funcionalidades que o sistema oferece, baseadas na
 | **RF09** | Gestão de Contexto | O sistema deve manter um histórico recente da conversa (limitado a ~14 mensagens) para manter a coerência do diálogo. |
 | **RF10** | Personalidade Configurável | O usuário deve poder definir e alterar a personalidade do bot (System Prompt) através de comandos ou configuração. |
 | **RF11** | Detecção de Sentimento | O bot deve analisar o texto gerado para identificar emoções (ex: [HAPPY], [ANGRY]) e ajustar o tom da voz de acordo. |
-| **RF12** | DNA de Voz (Voice Design) | O sistema deve ser capaz de criar um "DNA de voz" único baseado na descrição textual da personalidade (usando Qwen-TTS). |
 
 ## 3. Memória e Persistência
 

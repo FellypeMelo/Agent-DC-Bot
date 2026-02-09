@@ -10,16 +10,6 @@ def download_assets():
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
 
-    # 1. Qwen3-TTS
-    qwen_dir = os.path.join(data_dir, "tts", "qwen3")
-    if not os.path.exists(os.path.join(qwen_dir, "config.json")):
-        print("[INFO] Downloading Qwen3-TTS-1.7B...")
-        snapshot_download(
-            repo_id="Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
-            local_dir=qwen_dir,
-            local_dir_use_symlinks=False
-        )
-
     # 2. Kokoro-TTS (Skip download, using manually cloned V1.0)
     print("[INFO] Kokoro-TTS V1.0: Manually cloned repo detected. Skipping auto-download.")
 

@@ -2,7 +2,7 @@
 import logging
 import os
 import json
-from core.llm_provider import LMStudioProvider
+from core.llm_provider import LMStudioProvider, OllamaProvider, LlamaCppProvider
 
 logger = logging.getLogger(__name__)
 
@@ -10,27 +10,38 @@ class AIHandler:
     def __init__(self, config):
         self.config = config
         
-        # EXCLUSIVE LM-STUDIO CONFIGURATION
-        api_url = os.getenv('LM_STUDIO_API_URL', 'http://localhost:1234/v1')
-        model = os.getenv('AI_MODEL', 'ministral-3:3b')
+        backend = config.get_config_value("llm_backend", "lm_studio")
         
-        self.provider = LMStudioProvider(api_url, model)
-        logger.info(f"LLM Backend: LM-STUDIO | URL: {api_url} | Model: {model}")
+        if backend == "llama_cpp":
+            host = config.get_config_value("llama_server_host", "127.0.0.1")
+            port = config.get_config_value("llama_server_port", 8080)
+            api_url = f"http://{host}:{port}/v1"
+            model = "local-model" # llama-server usually doesn't care about model name in path
+            self.provider = LlamaCppProvider(api_url, model)
+        elif backend == "ollama":
+            api_url = config.get_config_value("ollama_api_url", "http://localhost:11434/v1")
+            model = config.get_config_value("ollama_model", "ministral-3:3b")
+            self.provider = OllamaProvider(api_url, model)
+        else: # Default or LM Studio
+            api_url = config.get_config_value("lm_studio_api_url", "http://localhost:1234/v1")
+            model = config.get_config_value("ai_model", "ministral-3:3b")
+            self.provider = LMStudioProvider(api_url, model)
+            
+        logger.info(f"LLM Backend: {self.provider.name} | URL: {self.provider.api_url} | Model: {self.provider.model}")
 
     async def initialize(self):
-        """Verifica apenas se o LM-Studio está acessível."""
+        """Verifica se o provedor selecionado está acessível."""
         api_url = self.provider.api_url
         import aiohttp
         try:
             async with aiohttp.ClientSession() as session:
-                # Usa /v1/models como health check (padrão OpenAI)
                 async with session.get(f"{api_url}/models", timeout=2) as response:
                     if response.status == 200:
-                        logger.info("Conexão com LM-Studio estabelecida com sucesso.")
+                        logger.info(f"Conexão com {self.provider.name} estabelecida com sucesso.")
                     else:
-                        logger.warning(f"LM-Studio respondeu com status: {response.status}")
-        except Exception as e:
-            logger.error(f"Não foi possível conectar ao LM-Studio em {api_url}. Verifique se o servidor está ligado!")
+                        logger.warning(f"{self.provider.name} respondeu com status: {response.status}")
+        except Exception:
+            logger.error(f"Não foi possível conectar ao {self.provider.name} em {api_url}. Verifique se o servidor está ligado!")
 
     def _trim_context(self, messages, max_tokens=12000):
         """Mantém o contexto dentro do limite para evitar estouro de memória."""
@@ -38,7 +49,29 @@ class AIHandler:
             return messages
         system_msg = [m for m in messages if m['role'] == 'system']
         chat_msgs = [m for m in messages if m['role'] != 'system']
-        return system_msg + chat_msgs[-14:] 
+        return system_msg + chat_msgs[-14:]
+
+    def _sanitize_context(self, messages):
+        """
+        Garante que não existam mensagens consecutivas do mesmo role.
+        Mescla mensagens consecutivas do mesmo autor.
+        """
+        if not messages:
+            return []
+            
+        sanitized = []
+        for msg in messages:
+            if not sanitized:
+                sanitized.append(msg)
+                continue
+                
+            last_msg = sanitized[-1]
+            if last_msg['role'] == msg['role']:
+                last_msg['content'] += f"\n\n{msg['content']}"
+            else:
+                sanitized.append(msg)
+                
+        return sanitized
 
     async def generate_response(self, prompt, personality=None, context=None, temperature=0.7, top_p=0.95):
         messages = []
@@ -47,6 +80,7 @@ class AIHandler:
         if context:
             messages.extend(context)
         messages.append({"role": "user", "content": prompt})
+        messages = self._sanitize_context(messages)
         messages = self._trim_context(messages)
         return await self.provider.generate(messages, temperature=temperature, top_p=top_p)
 
@@ -57,6 +91,7 @@ class AIHandler:
         if context:
             messages.extend(context)
         messages.append({"role": "user", "content": prompt})
+        messages = self._sanitize_context(messages)
         messages = self._trim_context(messages)
         async for chunk in self.provider.generate_stream(messages):
             yield chunk
@@ -96,20 +131,3 @@ class AIHandler:
         for m in history:
             text += f"{m['role']}: {m['content']}\n"
         return await self.provider.generate([{"role": "user", "content": text}], max_tokens=256)
-
-    async def generate_voice_dna_instruction(self, persona_description):
-        """
-        Gera uma instrução acústica detalhada para o Qwen-TTS baseado na persona.
-        """
-        prompt = (
-            "Com base na descrição de personalidade abaixo, crie uma instrução de voz concisa (máximo 20 palavras) "
-            "em português para um sintetizador de voz. Foque no tom, velocidade e características vocais.\n\n"
-            f"Persona: {persona_description}\n"
-            "Instrução de Voz:"
-        )
-        try:
-            response = await self.provider.generate([{"role": "user", "content": prompt}], max_tokens=64)
-            return response.strip().replace('"', '')
-        except Exception as e:
-            logger.error(f"Erro ao gerar DNA de voz: {e}")
-            return "Voz natural, amigável e clara."

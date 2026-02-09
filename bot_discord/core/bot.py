@@ -13,6 +13,7 @@ from core.config import Config
 from core.logger import setup_logger
 from core.database import DatabaseManager
 from core.voice_engine import VoiceEngine
+from core.llama_server import LlamaServerManager
 
 logger = setup_logger(__name__)
 
@@ -21,6 +22,7 @@ class DiscordBot:
         self.db = DatabaseManager()
         self.config = Config(self.db)
         self.voice_engine = VoiceEngine(self.config)
+        self.llama_server = LlamaServerManager(self.config)
         self.bot = None
         self._modules = {}
 
@@ -52,6 +54,14 @@ class DiscordBot:
             from modules.setup import CharacterWizard
             from modules.commands import CommandHandler
 
+            # 0. Start Llama Server if needed
+            backend = await self.config.get_config_db("llm_backend", "lm_studio")
+            if backend == "llama_cpp":
+                logger.info("Configurado para usar llama.cpp. Iniciando servidor...")
+                self.llama_server.start()
+                if not await self.llama_server.wait_for_ready(timeout=60):
+                    logger.error("Falha ao iniciar Llama Server. O bot pode não funcionar corretamente.")
+
             # 1. Base
             self._modules['memory'] = Memory(self.config, self.db)
             self._modules['ai_handler'] = AIHandler(self.config)
@@ -62,14 +72,6 @@ class DiscordBot:
             self.bot.add_cog(CharacterWizard(self.bot, self.db, self._modules['ai_handler'], self.voice_engine, self._modules['memory']))
             self.bot.add_cog(CommandHandler(self.bot, self.config, self._modules['memory'], self._modules['ai_handler']))
             
-            # 3. Carregar DNA de voz ativo
-            # self.db.connect() já deve ter sido chamado no runner
-            async with self.db._db.execute("SELECT voice_dna FROM character_profiles WHERE is_active = 1") as cursor:
-                row = await cursor.fetchone()
-                if row and row[0]:
-                    await self.voice_engine.load_dna(row[0])
-                    logger.info("DNA de voz carregado.")
-
             logger.info("Todos os módulos carregados com sucesso.")
         except Exception as e:
             logger.error(f"Erro crítico no carregamento de módulos: {e}", exc_info=True)
@@ -190,6 +192,8 @@ class DiscordBot:
             except Exception as e:
                 logger.error(f"Erro fatal no bot.start: {e}", exc_info=True)
             finally:
+                if self.llama_server:
+                    self.llama_server.stop()
                 if not self.bot.is_closed():
                     await self.bot.close()
 

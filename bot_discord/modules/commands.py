@@ -59,9 +59,7 @@ class CommandHandler(commands.Cog):
         tts_status = "Inativo"
         if voice_cog:
             if voice_cog.voice_engine.kokoro:
-                tts_status = "Kokoro (Fast Mode)"
-            elif voice_cog.voice_engine.model:
-                tts_status = "Qwen (Quality Mode)"
+                tts_status = "Kokoro (Habilitado)"
             else:
                 tts_status = "Aguardando"
 

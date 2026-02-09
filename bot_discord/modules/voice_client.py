@@ -219,8 +219,8 @@ class VoiceHandler(commands.Cog):
                 self.finished_callback
             )
             
-            # Carrega o motor ultra-rápido (Kokoro) para conversa fluída
-            await self.voice_engine.load_engine(mode="fast")
+            # Carrega o motor (Kokoro)
+            await self.voice_engine.load_engine()
             await self.voice_engine.load_stt() # Carrega o Whisper
             
             await ctx.send(f"🔊 Conectado a **{channel.name}**. O modo Conversa em Tempo Real está ATIVO!")

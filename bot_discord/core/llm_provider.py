@@ -16,10 +16,11 @@ class LLMProvider(ABC):
     async def generate_stream(self, messages, temperature=0.7, max_tokens=2048):
         pass
 
-class LMStudioProvider(LLMProvider):
-    def __init__(self, api_url, model):
+class OpenAICompatibleProvider(LLMProvider):
+    def __init__(self, api_url, model, name="OpenAI-Compatible"):
         self.api_url = api_url
         self.model = model
+        self.name = name
         self._session = None
         self.metrics = {"latency": [], "total_requests": 0, "errors": 0}
 
@@ -54,17 +55,17 @@ class LMStudioProvider(LLMProvider):
                 if response.status == 200:
                     result = await response.json()
                     content = result["choices"][0]["message"]["content"]
-                    logger.info(f"LLM Success | Latency: {latency:.2f}s")
+                    logger.info(f"LLM Success ({self.name}) | Latency: {latency:.2f}s")
                     return content
                 else:
                     self.metrics["errors"] += 1
                     error_text = await response.text()
-                    logger.error(f"LM Studio Error {response.status}: {error_text}")
-                    return f"Erro no servidor LM Studio (Status: {response.status})"
+                    logger.error(f"{self.name} Error {response.status}: {error_text}")
+                    return f"Erro no servidor {self.name} (Status: {response.status})"
         except Exception as e:
             self.metrics["errors"] += 1
-            logger.error(f"LLM Connection Error: {e}")
-            return "Erro de conexão com o servidor local de IA."
+            logger.error(f"LLM Connection Error ({self.name}): {e}")
+            return f"Erro de conexão com o servidor {self.name}."
 
     async def generate_stream(self, messages, temperature=0.7, max_tokens=2048, top_p=0.95):
         payload = {
@@ -92,13 +93,26 @@ class LMStudioProvider(LLMProvider):
                                 chunk = json.loads(line[6:])
                                 if 'choices' in chunk and len(chunk['choices']) > 0:
                                     delta = chunk['choices'][0].get('delta', {})
-                                    if 'content' in delta:
-                                        yield delta['content']
+                                    content = delta.get('content', '')
+                                    if content:
+                                        yield content
                             except:
                                 continue
                 else:
-                    logger.error(f"Stream Error: {response.status}")
-                    yield f"Erro no streaming: {response.status}"
+                    logger.error(f"Stream Error ({self.name}): {response.status}")
+                    yield f"Erro no streaming {self.name}: {response.status}"
         except Exception as e:
-            logger.error(f"Stream Connection Error: {e}")
-            yield "Erro de conexão no stream."
+            logger.error(f"Stream Connection Error ({self.name}): {e}")
+            yield f"Erro de conexão no stream {self.name}."
+
+class LMStudioProvider(OpenAICompatibleProvider):
+    def __init__(self, api_url, model):
+        super().__init__(api_url, model, name="LM Studio")
+
+class OllamaProvider(OpenAICompatibleProvider):
+    def __init__(self, api_url, model):
+        super().__init__(api_url, model, name="Ollama")
+
+class LlamaCppProvider(OpenAICompatibleProvider):
+    def __init__(self, api_url, model):
+        super().__init__(api_url, model, name="Llama.cpp")

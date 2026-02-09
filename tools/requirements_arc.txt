@@ -11,11 +11,7 @@ librosa>=0.10.0
 soundfile>=0.13.0
 faster-whisper
 
-# Qwen3-TTS Production Stack
-qwen-tts
-transformers
-accelerate
-einops
+# General Utils
 psutil
 
 # Tools

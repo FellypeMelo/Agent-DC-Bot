@@ -31,7 +31,7 @@ Este documento descreve as interações práticas entre o usuário e o sistema, 
 | **Ator** | Admin / Usuário | Admin / Usuário Autorizado |
 | **Pré-requisitos** | O bot deve estar online. |
 | **Gatilho** | O usuário digita `!setup_ai`. |
-| **Fluxo Principal** | 1. O bot inicia um diálogo interativo. <br> 2. O bot pergunta o nome da nova persona. <br> 3. O usuário responde. <br> 4. O bot pergunta a descrição da personalidade ("Como eu devo agir?"). <br> 5. O usuário fornece a descrição. <br> 6. O bot gera um "DNA de Voz" baseado na descrição (usando Qwen). <br> 7. O bot salva a nova configuração no banco de dados e a ativa. |
+| **Fluxo Principal** | 1. O bot inicia um diálogo interativo. <br> 2. O bot pergunta o nome da nova persona. <br> 3. O usuário responde. <br> 4. O bot pergunta a descrição da personalidade ("Como eu devo agir?"). <br> 5. O usuário fornece a descrição. <br> 6. O bot configura a nova personalidade no banco de dados e a ativa. |
 | **Pós-condições** | O bot agora responde com a nova personalidade e voz configuradas. |
 
 ## 4. UC04 - Consultar Memórias Salvas

@@ -9,21 +9,19 @@ from core.logger import setup_logger
 
 logger = setup_logger("core.voice_engine")
 
-# Attempt to import kokoro-onnx
-try:
-    from kokoro_onnx import Kokoro
-    logger.debug("kokoro_onnx package imported successfully.")
-except ImportError:
-    Kokoro = None
-    logger.warning("kokoro_onnx package not found. Fast TTS will be disabled.")
+# Add espeak-ng to PATH for Kokoro phonemization
+espeak_bin_path = r"C:\Program Files\eSpeak NG"
+if os.path.exists(espeak_bin_path) and espeak_bin_path not in os.environ["PATH"]:
+    os.environ["PATH"] += os.pathsep + espeak_bin_path
+    logger.debug(f"Added {espeak_bin_path} to PATH")
 
-# Attempt to import qwen_tts
+# Attempt to import native kokoro
 try:
-    from qwen_tts import Qwen3TTSModel
-    logger.debug("qwen_tts package imported successfully.")
+    from kokoro import KPipeline
+    logger.debug("kokoro (native PyTorch) package imported successfully.")
 except ImportError:
-    Qwen3TTSModel = None
-    logger.warning("qwen_tts package not found. High-quality TTS will be disabled.")
+    KPipeline = None
+    logger.warning("kokoro package not found. Fast TTS will be disabled.")
 
 try:
     from faster_whisper import WhisperModel
@@ -31,6 +29,25 @@ try:
 except ImportError:
     WhisperModel = None
     logger.warning("faster_whisper package not found. STT functionality will be disabled.")
+
+# Opus Library Loading (Crucial for Windows)
+import discord
+if os.name == 'nt' and not discord.opus.is_loaded():
+    logger.info("Tentando localizar biblioteca Opus para Windows...")
+    try:
+        # Tenta localizar a DLL no site-packages do discord
+        import importlib.util
+        spec = importlib.util.find_spec("discord")
+        if spec and spec.submodule_search_locations:
+            discord_path = spec.submodule_search_locations[0]
+            opus_dll = os.path.join(discord_path, "bin", "libopus-0.x64.dll")
+            if os.path.exists(opus_dll):
+                discord.opus.load_opus(opus_dll)
+                logger.info(f"✅ Opus carregado com sucesso de: {opus_dll}")
+            else:
+                logger.warning(f"⚠️ libopus-0.x64.dll não encontrada em {opus_dll}")
+    except Exception as e:
+        logger.error(f"❌ Falha ao carregar Opus manualmente: {e}")
 
 class BargeInEngine:
     """
@@ -105,7 +122,7 @@ class BargeInEngine:
 
 class VoiceEngine:
     """
-    Dual-Engine TTS (Kokoro for Speed, Qwen3 for Quality).
+    Fast TTS Engine (Kokoro).
     Optimized for Intel Arc B580 (XPU) and low-latency interaction.
     """
 
@@ -115,14 +132,8 @@ class VoiceEngine:
         self.device = "xpu" if torch.xpu.is_available() else "cpu"
         
         # Fast Engine (Kokoro)
-        self.kokoro: Optional[Kokoro] = None
+        self.kokoro: Optional[KPipeline] = None
         self.kokoro_voice = "af_sky" # Default feminine clear voice
-        
-        # High Quality Engine (Qwen)
-        self.model: Optional[Any] = None
-        self.cached_prompts: Dict[str, Any] = {}
-        self.base_model_id = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
-        self.design_model_id = "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
         
         self.whisper_model: Optional[Any] = None
         logger.info(f"VoiceEngine initialized. Device: {self.device}")
@@ -131,46 +142,31 @@ class VoiceEngine:
         self.vad = BargeInEngine()
 
     async def load_kokoro(self):
-        """Carrega o Kokoro-TTS V1.0 ONNX com logs detalhados."""
+        """Carrega o Kokoro-82M nativo (PyTorch) via KPipeline."""
         if self.kokoro: 
             logger.debug("[KOKORO] Motor já carregado.")
             return
-        
-        # Caminho estrito solicitado pelo usuário
-        v1_folder = os.path.join(self.base_path, "data", "tts", "Kokoro-82M-v1.0-ONNX")
-        model_path = os.path.join(v1_folder, "onnx", "model_q8f16.onnx")
-        voices_path = os.path.join(self.base_path, "data", "tts", "kokoro", "voices.json")
-        
-        logger.info("========================================")
-        logger.info("   INICIANDO KOKORO TTS V1.0 (ONNX)     ")
-        logger.info("========================================")
-        logger.info(f"[DEBUG] Pasta Base: {v1_folder}")
-        logger.info(f"[DEBUG] Modelo: {model_path}")
-        logger.info(f"[DEBUG] Vozes: {voices_path}")
 
-        if not os.path.exists(model_path):
-            logger.error(f"[CRÍTICO] Modelo ONNX V1.0 NÃO ENCONTRADO em: {model_path}")
+        if KPipeline is None:
+            logger.error("[KOKORO] Biblioteca 'kokoro' não disponível.")
             return
-        if not os.path.exists(voices_path):
-            logger.warning(f"[AVISO] voices.json não encontrado em {voices_path}. Tentando fallback...")
-            alt_voices = os.path.join(v1_folder, "voices.json")
-            if os.path.exists(alt_voices):
-                voices_path = alt_voices
-                logger.info(f"[DEBUG] Usando voices.json alternativo: {voices_path}")
-            else:
-                logger.error("[CRÍTICO] Nenhum arquivo voices.json disponível para Kokoro.")
-                return
+        
+        logger.info("========================================")
+        logger.info("   INICIANDO KOKORO TTS (PYTORCH)       ")
+        logger.info("========================================")
 
         try:
             import time
             start = time.time()
-            logger.debug("[KOKORO] Instanciando classe Kokoro...")
-            self.kokoro = Kokoro(model_path, voices_path)
+            logger.debug(f"[KOKORO] Instanciando KPipeline no dispositivo {self.device}...")
+            
+            # 'p' para Português, 'a' para American English, etc.
+            self.kokoro = KPipeline(lang_code='p', device=self.device)
+            
             end = time.time()
-            logger.info(f"✅ Kokoro V1.0 carregado com sucesso em {end-start:.2f}s.")
-            logger.info(f"[INFO] Backend ONNX Providers: {self.kokoro.get_providers() if hasattr(self.kokoro, 'get_providers') else 'N/A'}")
+            logger.info(f"✅ Kokoro PyTorch carregado com sucesso em {end-start:.2f}s.")
         except Exception as e:
-            logger.error(f"❌ FALHA TOTAL no carregamento do Kokoro V1.0: {e}", exc_info=True)
+            logger.error(f"❌ FALHA no carregamento do Kokoro PyTorch: {e}", exc_info=True)
 
     async def load_stt(self):
         """Carrega o modelo Whisper para STT."""
@@ -214,75 +210,23 @@ class VoiceEngine:
             logger.error(f"Transcription error: {e}")
             return ""
 
-    def is_loaded(self) -> bool:
-        """Checks if the model is currently in VRAM."""
-        return self.kokoro is not None or self.model is not None
-
-    async def load_engine(self, mode: str = "base"):
-        """Loads the Qwen3 model into VRAM."""
-        if mode == "fast":
-            await self.load_kokoro()
-            return
-
-        import shutil
-        if not shutil.which("sox"):
-            logger.error("ERRO CRÍTICO: SoX não encontrado no PATH. O Qwen-TTS precisa do SoX instalado.")
-            return
-
-        if Qwen3TTSModel is None:
-            logger.error("qwen-tts package not found. TTS disabled.")
-            return
-
-        if self.model:
-            logger.debug(f"Qwen3-TTS model already loaded in {mode} mode.")
-            return 
-
-        repo_id = self.base_model_id if mode == "base" else self.design_model_id
-        logger.info(f"Loading Qwen3-TTS model '{repo_id}' ({mode} mode) into {self.device}...")
-        
-        loop = asyncio.get_event_loop()
-        try:
-            self.model = await loop.run_in_executor(None, lambda: Qwen3TTSModel.from_pretrained(
-                repo_id,
-                device_map=self.device,
-                dtype=torch.float16, 
-                attn_implementation="eager"
-            ))
-            logger.info(f"Qwen3-TTS model '{repo_id}' loaded successfully on {self.device}.")
-        except Exception as e:
-            logger.error(f"Failed to load TTS model '{repo_id}': {e}", exc_info=True)
-            self.model = None
+    async def load_engine(self):
+        """Pre-loads the Kokoro engine."""
+        await self.load_kokoro()
 
     async def unload_engine(self):
         """Purges models from VRAM/RAM."""
-        if self.model:
-            logger.info("Unloading Qwen3-TTS Engine...")
-            del self.model
-            self.model = None
-            if self.device == "xpu":
-                torch.xpu.empty_cache()
         if self.kokoro:
             logger.info("Unloading Kokoro Engine...")
             self.kokoro = None
-
-    async def load_dna(self, dna_blob: bytes):
-        """Loads voice DNA for Qwen3."""
-        import pickle
-        try:
-            self.cached_prompts['active_dna'] = pickle.loads(dna_blob)
-            logger.info("Voice DNA loaded from database.")
-        except Exception as e:
-            logger.error(f"Failed to load voice DNA: {e}", exc_info=True)
+            if self.device == "xpu":
+                torch.xpu.empty_cache()
 
     async def generate_speech(self, text: str, sentiment: str = "neutral") -> Optional[bytes]:
         """
-        Generates speech using Kokoro (Fast) or Qwen (Quality).
+        Generates speech using Kokoro.
         """
-        # Preferência por Kokoro se carregado (Ultra Rápido)
-        if self.kokoro:
-            return await self._generate_kokoro(text)
-        
-        return await self._generate_qwen(text, sentiment)
+        return await self._generate_kokoro(text)
 
     async def _generate_kokoro(self, text: str) -> Optional[bytes]:
         """Geração via Kokoro V1.0 com telemetria detalhada."""
@@ -300,15 +244,26 @@ class VoiceEngine:
 
         try:
             # Forçamos pt-br para o Kokoro V1.0
-            logger.debug(f"[KOKORO] Gerando áudio com voz '{self.kokoro_voice}'...")
-            
-            # Kokoro-ONNX v0.5 generator pattern
-            samples, sr = next(self.kokoro.create(
+            # Kokoro PyTorch pipeline pattern
+            # generator retorna (graphemes, phonemes, audio)
+            generator = self.kokoro(
                 text, 
                 voice=self.kokoro_voice, 
-                speed=1.0, 
-                lang="pt-br" 
-            ))
+                speed=1.0
+            )
+            
+            # Coletamos o áudio (podemos concatenar se houver múltiplos chunks)
+            all_samples = []
+            for gs, ps, audio in generator:
+                if audio is not None:
+                    all_samples.append(audio)
+            
+            if not all_samples:
+                logger.error("❌ Erro: Kokoro não gerou nenhum áudio.")
+                return None
+            
+            samples = np.concatenate(all_samples)
+            sr = 24000 # Kokoro nativo é fixo em 24kHz
             
             gen_time = time.time() - start_time
             logger.info(f"✅ SUCESSO: Áudio gerado em {gen_time:.3f}s")
@@ -342,96 +297,6 @@ class VoiceEngine:
             logger.info(f"✅ [SÍNTESE COMPLETA] {len(final_pcm)} bytes preparados.")
             return final_pcm
 
-        except StopIteration:
-            logger.error("❌ Erro: O gerador Kokoro não retornou nenhum áudio.")
-            return None
         except Exception as e:
-            logger.error(f"❌ ERRO NA SÍNTESE V1.0: {e}", exc_info=True)
-            return None
-
-    async def _generate_qwen(self, text: str, sentiment: str = "neutral") -> Optional[bytes]:
-        """Geração via Qwen3-TTS (Alta Qualidade)."""
-        logger.info(f"Generating high-quality speech for: '{text[:50]}...'")
-        if not self.model:
-            await self.load_engine(mode="base")
-            if not self.model: return None
-
-        prompt = self.cached_prompts.get('active_dna')
-        if not prompt:
-            logger.error("No DNA found. Using Kokoro as fallback.")
-            await self.load_kokoro()
-            return await self._generate_kokoro(text)
-
-        loop = asyncio.get_event_loop()
-        try:
-            wavs, sr = await loop.run_in_executor(None, lambda: self.model.generate_voice_clone(
-                text=text,
-                language="Portuguese",
-                voice_clone_prompt=prompt,
-                x_vector_only_mode=True
-            ))
-            
-            if not wavs: return None
-            audio = wavs[0]
-            
-            if sr != 48000:
-                num_samples = int(len(audio) * 48000 / sr)
-                audio = np.interp(
-                    np.linspace(0, len(audio), num_samples, dtype=np.float32),
-                    np.arange(len(audio), dtype=np.float32),
-                    audio
-                )
-            
-            # Optimized Stereo Mix
-            audio_int16 = (audio * 32767).astype(np.int16)
-            audio_stereo = np.empty(len(audio_int16) * 2, dtype=np.int16)
-            audio_stereo[0::2] = audio_int16
-            audio_stereo[1::2] = audio_int16
-            return audio_stereo.tobytes()
-        except Exception as e:
-            logger.error(f"Qwen TTS Error: {e}")
-            return None
-
-    async def design_and_cache_voice(self, name: str, description: str):
-        """
-        One-time setup: Designs a voice and caches its embedding (prompt).
-        
-        Args:
-            name (str): Key for the personality (e.g., 'brazilian').
-            description (str): Natural language description (e.g., 'Feminina, jovem, animada').
-        """
-        logger.info(f"Starting voice design process for persona '{name}' with description: '{description}'")
-        # 1. Temporarily load design model
-        logger.debug("Loading 'design' engine.")
-        await self.load_engine(mode="design")
-        
-        ref_text = "Olá! Eu estou testando a minha nova voz configurada especialmente para você."
-        logger.debug(f"Generating reference audio for voice design with text: '{ref_text}'")
-        
-        loop = asyncio.get_event_loop()
-        try:
-            wavs, sr = await loop.run_in_executor(None, lambda: self.model.generate_voice_design(
-                text=ref_text,
-                language="Portuguese",
-                instruct=description
-            ))
-            logger.info(f"Reference audio generated for voice design. WAVs count: {len(wavs)}, Sample Rate: {sr}.")
-            
-            # 2. Extract Clone Prompt (This is what we actually save)
-            # We switch to base model to extract the reusable prompt
-            logger.debug("Unloading design engine and loading base engine to extract clone prompt.")
-            await self.unload_engine()
-            await self.load_engine(mode="base")
-            
-            prompt = await loop.run_in_executor(None, lambda: self.model.create_voice_clone_prompt(
-                ref_audio=(wavs[0], sr),
-                x_vector_only_mode=True # Precomputed embeddings for speed
-            ))
-            
-            self.cached_prompts[name] = prompt
-            logger.info(f"Voice persona '{name}' created and cached.")
-            return prompt
-        except Exception as e:
-            logger.error(f"Voice design and caching failed for '{name}': {e}", exc_info=True)
-            await self.unload_engine() # Ensure any loaded model is unloaded in case of failure
+            logger.error(f"❌ ERRO NA SÍNTESE KOKORO: {e}", exc_info=True)
             return None

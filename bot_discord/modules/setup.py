@@ -57,24 +57,12 @@ class CharacterWizard(commands.Cog):
             msg = await self.bot.wait_for('message', check=check, timeout=120.0)
             results['technical'] = {"temperature": float(msg.content)}
 
-            # --- Finalização e Síntese ---
-            status_msg = await ctx.send("⌛ **Processando Persona e Gerando DNA de Voz...** (Isso pode levar de 30 a 60 segundos na Intel ARC)")
+            # --- Finalização ---
+            status_msg = await ctx.send("⌛ **Salvando perfil no banco de dados...**")
             
-            # 1. Gera Instrução Acústica via LLM
-            persona_desc = f"{results['personality']['traits']} - {results['social']['role']}"
-            acoustic_instruct = await self.ai.generate_voice_dna_instruction(persona_desc)
-            await status_msg.edit(content=f"⌛ **Instrução de voz gerada:** `{acoustic_instruct}`\nAgora carregando o modelo VoiceDesign...")
+            await self.save_profile(results, None)
             
-            # 2. Gera DNA de Voz (VoiceDesign)
-            voice_dna_prompt = await self.voice.design_and_cache_voice("active_dna", acoustic_instruct)
-            await status_msg.edit(content="⌛ **DNA de Voz capturado com sucesso!** Salvando perfil no banco de dados...")
-            
-            # 3. Salva no Banco de Dados
-            import pickle
-            voice_dna_blob = pickle.dumps(voice_dna_prompt) if voice_dna_prompt else None
-            await self.save_profile(results, voice_dna_blob)
-            
-            await status_msg.edit(content=f"✨ **Sucesso!** O personagem **{results['identity']['name']}** nasceu e sua voz foi calibrada!")
+            await status_msg.edit(content=f"✨ **Sucesso!** O personagem **{results['identity']['name']}** foi criado com sucesso!")
             
         except asyncio.TimeoutError:
             await ctx.send("❌ Tempo esgotado. Processo cancelado.")

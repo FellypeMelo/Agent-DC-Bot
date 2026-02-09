@@ -9,7 +9,7 @@ Este documento define as lógicas, políticas e regras que regem o comportamento
 | **RN01** | Mudança de Humor | O humor do bot ('mood') deve ser atualizado dinamicamente com base na análise de sentimento da resposta gerada. Sentimentos como [HAPPY] ou [ANGRY] alteram o estado armazenado no banco. |
 | **RN02** | Afinidade do Usuário | A afinidade (`affinity`) é um valor numérico que deve aumentar (+0.1) a cada interação positiva e diminuir (-0.5) em caso de interrupções frequentes ou hostilidade detectada. |
 | **RN03** | Reset de Humor | O humor deve tender ao estado 'neutral' após um período de inatividade (ex: 1 hora sem interação), simulando "esfriamento" emocional. |
-| **RN04** | Influência na Voz | O estado emocional atual deve influenciar a escolha do prompt de voz (se usando Qwen) ou a velocidade/tom (se usando Kokoro), tornando a fala mais rápida se [ANGRY] ou mais lenta se [SAD]. |
+| **RN04** | Influência na Voz | O estado emocional atual deve influenciar a velocidade e o tom da voz (Kokoro), tornando a fala mais rápida se [ANGRY] ou mais lenta se [SAD]. |
 
 ## 2. Regras de Memória e Retenção
 
@@ -25,7 +25,7 @@ Este documento define as lógicas, políticas e regras que regem o comportamento
 | ID | Regra | Descrição |
 | :--- | :--- | :--- |
 | **RN09** | Prioridade de Interrupção | Se o usuário falar por mais de 0.5s enquanto o bot fala, o bot deve cessar a fala imediatamente (Barge-In). O bot deve pedir desculpas ou reconhecer a interrupção na próxima fala. |
-| **RN10** | Modo de Fala | Se a resposta for curta (< 50 caracteres) e o sentimento for neutro/feliz, o sistema deve preferir o motor **Kokoro** (Rápido). Para respostas longas ou dramáticas, usar **Qwen** (Qualidade). |
+| **RN10** | Modo de Fala | O sistema utiliza o motor **Kokoro** como padrão para todas as gerações, otimizando tanto a velocidade quanto a qualidade da síntese de fala. |
 | **RN11** | Timeout de Silêncio | Se o bot estiver em um canal de voz sozinho ou em silêncio absoluto por mais de 5 minutos, ele deve sair automaticamente para economizar recursos. |
 | **RN12** | Formato de Áudio | Todo áudio enviado ao Discord deve ser estritamente Stereo 48kHz PCM16LE. Qualquer outro formato deve ser convertido antes do envio. |
 
