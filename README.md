@@ -1,86 +1,63 @@
-# 🤖 Agent-DC-Bot: Conversational AI Agent
+# Agent-DC-Bot: Assistente de IA de Alta Performance
 
-Um agente de IA de alta performance para Discord, otimizado para **Intel Arc GPUs (SYCL)**, com memória semântica, consciência emocional e voz em tempo real.
-
----
-
-## 🚀 Principais Características
-
-### 🧠 Cérebro & Memória
-- **LLM Flexível**: Suporta LM Studio (API) ou Llama-cpp (Local) com aceleração SYCL.
-- **RAG-Lite (Memória Semântica)**: Usa `all-MiniLM-L6-v2` para lembrar de fatos importantes via similaridade de cosseno ($O(\log N)$ no DB, $O(1)$ em Python via Numpy).
-- **Jornal de Longo Prazo**: O bot resume automaticamente conversas longas e as armazena, prevenindo o esquecimento e mantendo o contexto limpo e rápido.
-
-### ❤️ Dinâmica Social & Emoções
-- **Sistema de Afinidade**: A amizade evolui baseada nas interações.
-- **Estado Emocional (Mood)**: O bot detecta sentimentos (Feliz, Irritado, Neutro) e muda o comportamento e a voz dinamicamente.
-- **Consciência Temporal**: O bot sabe quanto tempo passou desde a última conversa ("Faz tempo que não nos falamos!").
-
-### 🎙️ Voz & Ouvido
-- **Kokoro TTS (S-Tier)**: Vozes ultra-realistas locais de apenas 80MB.
-- **Streaming Audio**: O bot começa a falar enquanto ainda está processando a resposta (baixa latência).
-- **Faster-Whisper STT**: Transcrição rápida para ouvir usuários no canal de voz.
+Um agente de IA sofisticado para Discord, projetado para rodar localmente com foco em privacidade e alta performance (especialmente em GPUs Intel Arc). Este bot combina conversação natural por voz, memória persistente e uma personalidade dinâmica.
 
 ---
 
-## 🛠️ Arquitetura Técnica
+## 📚 Documentação Completa
 
-| Componente | Tecnologia | Complexidade (Big O) |
-| :--- | :--- | :--- |
-| **Banco de Dados** | SQLite + Indexing | $O(\log N)$ |
-| **Busca Semântica** | Numpy Vectorization | $O(M)$ (C-Level optimization) |
-| **Inferência LLM** | Llama-cpp (SYCL) | Dependente de Hardware (Arc B580) |
-| **Sumarização** | AI Logic | $O(N)$ mensagens |
+A documentação detalhada do sistema está organizada na pasta `docs/`. Abaixo está o índice para navegação rápida:
 
----
+### 🔹 Para Usuários
+- **[Guia do Usuário](docs/USER_GUIDE.md)**: Passo-a-passo de como instalar, configurar e conversar com o bot.
+- **[Casos de Uso (UC)](docs/UC.md)**: Exemplos práticos de interações e o que esperar de cada comando.
 
-## 📦 Instalação (Windows + Intel Arc)
-
-### 1. Requisitos de Sistema
-- Python 3.10+
-- **Intel oneAPI Base Toolkit** (Obrigatório para aceleração SYCL na B580)
-- FFMPEG instalado no PATH (Para áudio no Discord)
-
-### 2. Setup Automatizado
-Execute o script de setup especializado:
-```powershell
-setup_arc.bat
-```
-Este script irá:
-- Criar o ambiente virtual (`venv`).
-- Instalar **Intel Extension for PyTorch (IPEX)**.
-- Compilar o `llama-cpp-python` especificamente para sua GPU Intel.
-- Criar o arquivo `.env`.
-
-### 3. Modelos Necessários
-Baixe e coloque na pasta `bot_discord/data/`:
-- `kokoro-v0_19.onnx` (HuggingFace)
-- `voices.json` (HuggingFace)
-- Seu modelo `.gguf` preferido.
+### 🔹 Para Desenvolvedores e Arquitetos
+- **[Guia do Desenvolvedor](docs/DEVELOPER_GUIDE.md)**: Como o código funciona, estrutura de pastas e como contribuir.
+- **[Arquitetura do Sistema](docs/ARCHITECTURE.md)**: Diagramas UML (Mermaid) e explicação dos componentes internos.
+- **[Requisitos Funcionais (RF)](docs/RF.md)**: Lista completa do que o sistema faz.
+- **[Requisitos Não Funcionais (RNF)](docs/RNF.md)**: Performance, segurança e restrições técnicas.
+- **[Regras de Negócio (RN)](docs/RN.md)**: Lógicas internas de memória, afinidade e emoção.
 
 ---
 
-## 🎮 Comandos Principais
+## 🚀 Destaques do Projeto
 
-- `!join`: O bot entra no seu canal de voz e ativa o modo "Real-Time".
-- `!leave`: O bot sai do canal de voz.
-- `!limpar`: Limpa o histórico de conversa (memória de curto prazo).
-- `!memorias`: Lista os fatos que o bot lembra sobre você.
-- `!personalidade [descrição]`: Muda a personalidade global do bot.
+### 🗣️ Conversa em Tempo Real
+Utiliza **Whisper (Tiny)** para ouvir e **Kokoro V1.0** para falar, garantindo uma latência extremamente baixa para conversas fluidas.
+
+### 🧠 Memória Semântica (RAG)
+O bot "lembra" de você. Ele extrai fatos das conversas e os armazena em um banco de dados vetorial local, recuperando-os quando relevante para o contexto atual.
+
+### 🎭 Personalidade Dinâmica
+Crie personas únicas com "DNA de Voz" gerado por IA. O bot ajusta seu tom de voz e estilo de fala com base na descrição que você fornecer.
+
+### 🔒 100% Local e Privado
+Tudo roda na sua máquina. Nenhuma conversa é enviada para a nuvem. Seus dados são seus.
+
+---
+
+## 🛠️ Instalação Rápida
+
+1. **Clone o Repositório:**
+   ```bash
+   git clone https://github.com/seu-usuario/agent-dc-bot.git
+   ```
+
+2. **Instale Dependências:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+   *(Usuários Intel Arc: executem `tools/setup_arc.bat`)*
+
+3. **Inicie o LM Studio:**
+   Configure o servidor local na porta `1234`.
+
+4. **Rode o Bot:**
+   ```bash
+   run_bot.bat
+   ```
 
 ---
 
-## 🛡️ Segurança & Produção
-- **Privacidade Local**: Todos os dados, memórias e interações são processados 100% no seu computador. Nada é enviado para nuvens de terceiros.
-- **Sanidade de Dados**: Todas as queries SQL são parametrizadas contra injeção.
-- **Observabilidade**: Logs detalhados em `logs/YYYY-MM-DD.log`.
-
----
-
-## 📈 Roadmap de Upgrades
-- [ ] **Interrupção Duplex**: Parar a fala do bot instantaneamente quando o usuário começar a falar.
-- [ ] **Visão Agentica**: Capacidade de processar imagens postadas no chat.
-- [ ] **Backup em Nuvem**: Enviar cópias criptografadas do `bot_database.db` para segurança.
-
----
-*Desenvolvido com foco em performance e simplicidade (KISS).*
+*Desenvolvido com foco em simplicidade e poder.*
