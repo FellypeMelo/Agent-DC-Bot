@@ -1,8 +1,8 @@
-# commands.py
 import discord
 from discord.ext import commands
 import json
 import psutil
+import os
 from core.logger import setup_logger
 
 logger = setup_logger("modules.commands")
@@ -65,12 +65,73 @@ class CommandHandler(commands.Cog):
             else:
                 tts_status = "Aguardando"
 
+        backend = await self.config.get_config_db("llm_backend", "lm_studio")
+        ai_status = f"Backend: {backend}"
+
+        if backend == "llama_cpp":
+            # Access LlamaServerManager via bot instance if available
+            # self.bot.owner_instance refers to the DiscordBot class instance which holds llama_server
+            if hasattr(self.bot, 'owner_instance') and hasattr(self.bot.owner_instance, 'llama_server'):
+                mgr = self.bot.owner_instance.llama_server
+                if mgr.is_running():
+                    ai_status += f"\n✅ Llama Server (PID: {mgr.process.pid})"
+                else:
+                    ai_status += "\n❌ Llama Server Parado"
+            else:
+                 ai_status += " (Ext)"
+
         embed = discord.Embed(title="📊 Status do Bot", color=discord.Color.green())
         embed.add_field(name="💻 CPU", value=f"{cpu}%")
         embed.add_field(name="🧠 RAM", value=f"{ram}%")
         embed.add_field(name="🔊 TTS", value=tts_status)
-        embed.add_field(name="🤖 AI", value="LM-STUDIO (Online)", inline=False)
+        embed.add_field(name="🤖 AI", value=ai_status, inline=False)
         await ctx.send(embed=embed)
+
+    @commands.command(name='llm_restart')
+    @commands.is_owner()
+    async def llm_restart(self, ctx):
+        """Reinicia o servidor Llama.cpp (Apenas Owner)"""
+        backend = await self.config.get_config_db("llm_backend", "lm_studio")
+        if backend != "llama_cpp":
+            return await ctx.send("⚠️ Este comando só funciona com o backend `llama_cpp`.")
+
+        msg = await ctx.send("🔄 Reiniciando Llama Server...")
+
+        if hasattr(self.bot, 'owner_instance') and hasattr(self.bot.owner_instance, 'llama_server'):
+            mgr = self.bot.owner_instance.llama_server
+            try:
+                mgr.stop()
+                mgr.start()
+                if await mgr.wait_for_ready(timeout=30):
+                    await msg.edit(content="✅ Llama Server reiniciado com sucesso!")
+                else:
+                    await msg.edit(content="❌ Falha ao reiniciar Llama Server. Verifique os logs.")
+            except Exception as e:
+                await msg.edit(content=f"❌ Erro crítico: {e}")
+        else:
+            await msg.edit(content="❌ Gerenciador não encontrado.")
+
+    @commands.command(name='llm_logs')
+    @commands.is_owner()
+    async def llm_logs(self, ctx, lines: int = 15):
+        """Mostra as últimas linhas do log do Llama Server"""
+        log_path = "llama_server.log"
+        if not os.path.exists(log_path):
+            return await ctx.send("⚠️ Arquivo de log não encontrado.")
+
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.readlines()
+                if not content:
+                    return await ctx.send("📄 Log vazio.")
+
+                last_lines = "".join(content[-lines:])
+                if len(last_lines) > 1900:
+                    last_lines = last_lines[-1900:]
+
+                await ctx.send(f"📄 **Llama Server Logs (Últimas {lines} linhas):**\n```log\n{last_lines}```")
+        except Exception as e:
+            await ctx.send(f"❌ Erro ao ler log: {e}")
 
     @commands.command(name='limpar')
     async def limpar(self, ctx):
