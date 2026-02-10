@@ -9,7 +9,7 @@ def test_save_profile_persists_data():
         db = MagicMock()
         db._db.execute = AsyncMock()
         db._db.commit = AsyncMock()
-        wizard = CharacterWizard(MagicMock(), db, MagicMock(), MagicMock(), MagicMock())
+        wizard = CharacterWizard(MagicMock(), db, MagicMock(), MagicMock())
         payload = {
             "identity": {"name": "Teste"},
             "personality": {"traits": "calmo"},
@@ -20,7 +20,7 @@ def test_save_profile_persists_data():
             "technical": {"temperature": 0.7},
         }
 
-        await wizard.save_profile(payload, voice_dna_blob=b"voice")
+        await wizard.save_profile(payload)
         db._db.execute.assert_awaited()
         db._db.commit.assert_awaited_once()
 

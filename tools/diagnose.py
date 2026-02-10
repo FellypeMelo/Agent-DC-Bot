@@ -41,7 +41,6 @@ async def run_diag():
     # 3. Model Assets Check
     data_dir = os.path.join("bot_discord", "data")
     assets = {
-        "Silero VAD": "silero_vad.onnx",
         "Llama GGUF": "models" 
     }
     for name, path in assets.items():

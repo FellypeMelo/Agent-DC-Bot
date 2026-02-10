@@ -56,53 +56,6 @@ def _ensure_optional_dependencies():
         sentence_stub.SentenceTransformer = SentenceTransformer
         _install_stub_module("sentence_transformers", sentence_stub)
 
-    if importlib.util.find_spec("kokoro_onnx") is None:
-        kokoro_stub = types.SimpleNamespace()
-
-        class Kokoro:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def get_providers(self):
-                return ["cpu"]
-
-        kokoro_stub.Kokoro = Kokoro
-        _install_stub_module("kokoro_onnx", kokoro_stub)
-
-    if importlib.util.find_spec("qwen_tts") is None:
-        qwen_stub = types.SimpleNamespace()
-
-        class Qwen3TTSModel:
-            @classmethod
-            def from_pretrained(cls, *args, **kwargs):
-                return cls()
-
-        qwen_stub.Qwen3TTSModel = Qwen3TTSModel
-        _install_stub_module("qwen_tts", qwen_stub)
-
-    if importlib.util.find_spec("faster_whisper") is None:
-        whisper_stub = types.SimpleNamespace()
-
-        class WhisperModel:
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def transcribe(self, *args, **kwargs):
-                return ([], None)
-
-        whisper_stub.WhisperModel = WhisperModel
-        _install_stub_module("faster_whisper", whisper_stub)
-
-    if importlib.util.find_spec("silero_vad") is None:
-        silero_stub = types.SimpleNamespace()
-
-        class DummyVadModel:
-            def __call__(self, *args, **kwargs):
-                return np.array(0.0)
-
-        silero_stub.load_silero_vad = lambda: DummyVadModel()
-        _install_stub_module("silero_vad", silero_stub)
-
     if importlib.util.find_spec("discord") is None:
         discord_stub = types.SimpleNamespace()
         discord_stub.Color = types.SimpleNamespace(blue=lambda: 0x0000FF, green=lambda: 0x00FF00)
@@ -116,8 +69,6 @@ def _ensure_optional_dependencies():
                 self.fields.append(kwargs)
 
         discord_stub.Embed = Embed
-        discord_stub.PCMAudio = lambda *args, **kwargs: None
-        discord_stub.sinks = types.SimpleNamespace(Sink=object)
         _install_stub_module("discord", discord_stub)
 
     if importlib.util.find_spec("psutil") is None:
@@ -125,11 +76,6 @@ def _ensure_optional_dependencies():
         psutil_stub.cpu_percent = lambda: 0.0
         psutil_stub.virtual_memory = lambda: types.SimpleNamespace(percent=0.0)
         _install_stub_module("psutil", psutil_stub)
-
-    if importlib.util.find_spec("discord") is not None:
-        discord_module = importlib.import_module("discord")
-        if not hasattr(discord_module, "sinks"):
-            discord_module.sinks = types.SimpleNamespace(Sink=object)
 
 
 _ensure_optional_dependencies()

@@ -47,7 +47,7 @@ echo [SUCCESS] .env criado.
 
 :check_voice
 :: 3. Verify Assets via the Python Downloader
-echo [INFO] Verificando ativos de IA (Qwen3 / Silero)...
+echo [INFO] Verificando ativos de IA...
 uv run tools/download_assets.py
 
 :set_vars

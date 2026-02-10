@@ -23,12 +23,12 @@ set /p gpu_choice="Opcao: "
 
 if "%gpu_choice%"=="1" (
     echo [INFO] Instalando PyTorch CUDA Nightly...
-    uv pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
+    uv pip install torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu121
     set CMAKE_ARGS=-DGGML_CUDA=ON
     uv pip install llama-cpp-python --no-binary llama-cpp-python
 ) else (
     echo [INFO] Instalando PyTorch CPU...
-    uv pip install torch torchvision torchaudio
+    uv pip install torch torchvision
     uv pip install llama-cpp-python
 )
 

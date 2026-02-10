@@ -45,11 +45,9 @@ bot_discord/
 ├── core/              # Componentes fundamentais
 │   ├── bot.py         # Entrypoint e loop principal
 │   ├── database.py    # Abstração do SQLite (Async)
-│   ├── voice_engine.py# Gerenciador de TTS/STT (Kokoro, Whisper)
 │   └── llm_provider.py# Cliente HTTP para LM Studio
 ├── modules/           # Funcionalidades de alto nível (Cogs)
 │   ├── ai_handler.py  # Lógica de prompts e memória
-│   ├── voice_client.py# Lógica de conexão com Discord Voice
 │   └── commands.py    # Comandos de usuário (!help, etc)
 └── data/              # Arquivos persistentes
     ├── bot_database.db# SQLite DB
@@ -62,8 +60,7 @@ bot_discord/
 2. **Init:** O `DiscordBot` carrega o `config.py` e inicializa o `DatabaseManager`.
 3. **Connect:** O bot se conecta ao Gateway do Discord.
 4. **Load Cogs:** Os módulos em `modules/` são carregados como extensões.
-   - `VoiceHandler` inicializa o `VoiceEngine` (mas não carrega modelos pesados na VRAM ainda).
-5. **Wait:** O bot aguarda comandos ou eventos de voz.
+5. **Wait:** O bot aguarda comandos ou mensagens.
 
 ## 4. Estendendo o Bot
 
@@ -79,11 +76,6 @@ async def novo_comando(self, ctx):
 
 ### Modificando a Lógica de IA
 Edite `bot_discord/modules/ai_handler.py`. A função `generate_response` controla o que é enviado ao LLM. Você pode adicionar novos passos ao pipeline, como buscar dados na web antes de responder.
-
-### Adicionando um Novo Motor de TTS
-1. Implemente a classe do motor em `bot_discord/core/voice_engine.py`.
-2. Adicione a lógica de carregamento em `load_engine`.
-3. Atualize o método `generate_speech` para usar seu novo motor.
 
 ---
 

@@ -1,15 +1,9 @@
 # Core
-py-cord[voice]>=2.6.0
+py-cord>=2.6.0
 python-dotenv>=1.0.0
 aiosqlite>=0.20.0
 numpy<2.0.0
 sentence-transformers
-
-# Audio & VAD
-onnxruntime>=1.16.0
-librosa>=0.10.0
-soundfile>=0.13.0
-faster-whisper
 
 # General Utils
 psutil

@@ -68,7 +68,7 @@ call .venv\Scripts\activate
 echo.
 echo [INFO] Instalando PyTorch NATIVE XPU Nightly...
 :: Forçamos a versão Nightly e usamos o index XPU como PRIORIDADE MÁXIMA
-uv pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu --no-cache
+uv pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/xpu --no-cache
 
 :: 5. Compile Llama-cpp-python (SYCL)
 echo.

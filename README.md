@@ -23,14 +23,14 @@ A documentação detalhada do sistema está organizada na pasta `docs/`. Abaixo 
 
 ## 🚀 Destaques do Projeto
 
-### 🗣️ Conversa em Tempo Real
-Utiliza **Whisper (Tiny)** para ouvir e **Kokoro V1.0** para falar, garantindo uma latência extremamente baixa para conversas fluidas.
+### 💬 Conversa Inteligente
+Interação textual avançada com suporte a modelos LLM locais (Llama, Qwen), garantindo respostas rápidas e contextualizadas.
 
 ### 🧠 Memória Semântica (RAG)
 O bot "lembra" de você. Ele extrai fatos das conversas e os armazena em um banco de dados vetorial local, recuperando-os quando relevante para o contexto atual.
 
 ### 🎭 Personalidade Dinâmica
-Crie personas únicas com "DNA de Voz" gerado por IA. O bot ajusta seu tom de voz e estilo de fala com base na descrição que você fornecer.
+Crie personas únicas com características customizadas. O bot ajusta seu estilo de fala e tom com base na descrição que você fornecer.
 
 ### 🔒 100% Local e Privado
 Tudo roda na sua máquina. Nenhuma conversa é enviada para a nuvem. Seus dados são seus.

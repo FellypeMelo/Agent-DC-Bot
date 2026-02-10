@@ -1,14 +1,21 @@
+# commands.py
 import discord
 from discord.ext import commands
 import json
 import psutil
 import os
-from core.logger import setup_logger
+import logging
+from typing import Optional
 
-logger = setup_logger("modules.commands")
+logger = logging.getLogger(__name__)
 
 class CommandHandler(commands.Cog):
     def __init__(self, bot, config, memory, ai_handler):
+        """
+        Initializes command handlers.
+        
+        Big (O): O(1).
+        """
         self.bot = bot
         self.config = config
         self.memory = memory
@@ -16,35 +23,33 @@ class CommandHandler(commands.Cog):
 
     @commands.command(name='ajuda', aliases=['help'])
     async def ajuda(self, ctx):
-        """Menu de Ajuda Central"""
+        """
+        Displays the help menu.
+        
+        Big (O): O(1) - Constant time response with static content.
+        """
         prefix = self.bot.command_prefix
         embed = discord.Embed(
-            title="🤖 Central de Comando Blepp",
+            title="🤖 Central de Comando",
             color=discord.Color.blue(),
-            description="Aqui estão as ferramentas de configuração e interação."
+            description="Interface de controle do Agente DC."
         )
         
         embed.add_field(
-            name="✨ Configuração (Passo a Passo)",
-            value=f"`{prefix}setup_ai` - Cria sua personalidade e voz do zero.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🔊 Conversa por Voz",
-            value=f"`{prefix}join` - Entra no canal e ativa Whisper.\n`{prefix}leave` - Sai do canal.",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🎭 Persona & IA",
-            value=f"`{prefix}perfil` - Status da persona ativa.\n`{prefix}status` - Saúde do sistema.",
+            name="✨ Configuração",
+            value=f"`{prefix}setup_ai` - Configura a personalidade.",
             inline=False
         )
         
         embed.add_field(
             name="🧠 Memória",
-            value=f"`{prefix}memorias` - O que eu sei sobre você.\n`{prefix}limpar` - Reseta o chat.",
+            value=f"`{prefix}memorias` - Consulta fatos salvos.\n`{prefix}limpar` - Reseta o chat.",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 Sistema",
+            value=f"`{prefix}status` - Saúde do bot.",
             inline=False
         )
         
@@ -52,109 +57,77 @@ class CommandHandler(commands.Cog):
 
     @commands.command(name='status')
     async def status(self, ctx):
+        """
+        Displays system resource usage and AI backend status.
+        
+        Big (O): O(1) - Rapid syscalls for CPU/RAM and single DB lookup.
+        """
+        # psutil calls are efficient C-level lookups
         cpu = psutil.cpu_percent()
         ram = psutil.virtual_memory().percent
         
-        voice_cog = self.bot.get_cog("VoiceHandler")
-        tts_status = "Inativo"
-        if voice_cog:
-            if voice_cog.voice_engine.kokoro:
-                tts_status = "Kokoro (Habilitado)"
-            else:
-                tts_status = "Aguardando"
-
         backend = await self.config.get_config_db("llm_backend", "lm_studio")
         ai_status = f"Backend: {backend}"
 
+        # Llama Server check if applicable
         if backend == "llama_cpp":
-            # Access LlamaServerManager via bot instance if available
-            # self.bot.owner_instance refers to the DiscordBot class instance which holds llama_server
             if hasattr(self.bot, 'owner_instance') and hasattr(self.bot.owner_instance, 'llama_server'):
                 mgr = self.bot.owner_instance.llama_server
                 if mgr.is_running():
-                    ai_status += f"\n✅ Llama Server (PID: {mgr.process.pid})"
+                    ai_status += f"\n✅ Online (PID: {mgr.process.pid})"
                 else:
-                    ai_status += "\n❌ Llama Server Parado"
-            else:
-                 ai_status += " (Ext)"
+                    ai_status += "\n❌ Offline"
 
-        embed = discord.Embed(title="📊 Status do Bot", color=discord.Color.green())
+        embed = discord.Embed(title="📊 Status do Sistema", color=discord.Color.green())
         embed.add_field(name="💻 CPU", value=f"{cpu}%")
         embed.add_field(name="🧠 RAM", value=f"{ram}%")
-        embed.add_field(name="🔊 TTS", value=tts_status)
         embed.add_field(name="🤖 AI", value=ai_status, inline=False)
         await ctx.send(embed=embed)
 
-    @commands.command(name='llm_restart')
-    @commands.is_owner()
-    async def llm_restart(self, ctx):
-        """Reinicia o servidor Llama.cpp (Apenas Owner)"""
-        backend = await self.config.get_config_db("llm_backend", "lm_studio")
-        if backend != "llama_cpp":
-            return await ctx.send("⚠️ Este comando só funciona com o backend `llama_cpp`.")
-
-        msg = await ctx.send("🔄 Reiniciando Llama Server...")
-
-        if hasattr(self.bot, 'owner_instance') and hasattr(self.bot.owner_instance, 'llama_server'):
-            mgr = self.bot.owner_instance.llama_server
-            try:
-                mgr.stop()
-                mgr.start()
-                if await mgr.wait_for_ready(timeout=30):
-                    await msg.edit(content="✅ Llama Server reiniciado com sucesso!")
-                else:
-                    await msg.edit(content="❌ Falha ao reiniciar Llama Server. Verifique os logs.")
-            except Exception as e:
-                await msg.edit(content=f"❌ Erro crítico: {e}")
-        else:
-            await msg.edit(content="❌ Gerenciador não encontrado.")
-
-    @commands.command(name='llm_logs')
-    @commands.is_owner()
-    async def llm_logs(self, ctx, lines: int = 15):
-        """Mostra as últimas linhas do log do Llama Server"""
-        log_path = "llama_server.log"
-        if not os.path.exists(log_path):
-            return await ctx.send("⚠️ Arquivo de log não encontrado.")
-
-        try:
-            with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.readlines()
-                if not content:
-                    return await ctx.send("📄 Log vazio.")
-
-                last_lines = "".join(content[-lines:])
-                if len(last_lines) > 1900:
-                    last_lines = last_lines[-1900:]
-
-                await ctx.send(f"📄 **Llama Server Logs (Últimas {lines} linhas):**\n```log\n{last_lines}```")
-        except Exception as e:
-            await ctx.send(f"❌ Erro ao ler log: {e}")
-
     @commands.command(name='limpar')
     async def limpar(self, ctx):
+        """
+        Clears the short-term conversation history for the user.
+        
+        Big (O): O(1) - Targeted SQL deletion.
+        """
         await self.memory.db.clear_history(ctx.author.id)
         await ctx.send("🧹 Histórico de conversa limpo!")
 
     @commands.command(name='memorias')
     async def memorias(self, ctx):
+        """
+        Lists stored permanent facts about the user.
+        
+        Big (O): O(M) - M is number of memories (formatting for display).
+        """
         async with self.memory.db._db.execute(
-            "SELECT content FROM memories WHERE user_id = ?", (str(ctx.author.id),)
+            "SELECT content FROM memories WHERE user_id = ? LIMIT 10", (str(ctx.author.id),)
         ) as cursor:
             rows = await cursor.fetchall()
+            
         if rows:
+            # Efficient join for string building
             res = "\n".join([f"• {r[0]}" for r in rows])
-            await ctx.send(f"🧠 **Fatos salvos:**\n{res}")
+            await ctx.send(f"🧠 **O que eu lembro sobre você:**\n{res}")
         else:
-            await ctx.send("📭 Sem memórias por enquanto.")
+            await ctx.send("📭 Ainda não tenho memórias salvas.")
 
     @commands.command(name='perfil')
     async def perfil(self, ctx):
+        """
+        Shows the currently active character profile.
+        
+        Big (O): O(1) - Single SQL lookup.
+        """
         async with self.memory.db._db.execute("SELECT identity_json FROM character_profiles WHERE is_active = 1") as cursor:
             row = await cursor.fetchone()
-            if not row: return await ctx.send("⚠️ Sem perfil ativo. Use `!setup_ai`.")
+            if not row: 
+                return await ctx.send("⚠️ Sem perfil ativo. Use `!setup_ai`.")
+            
             data = json.loads(row[0])
-            await ctx.send(f"👤 **Perfil Ativo:** {data.get('name')}")
+            await ctx.send(f"👤 **Persona Ativa:** {data.get('name')}")
 
 async def setup(bot):
+    # This Cog is loaded manually in bot.py
     pass

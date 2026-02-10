@@ -12,7 +12,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.config import Config
 from core.logger import setup_logger
 from core.database import DatabaseManager
-from core.voice_engine import VoiceEngine
 from core.llama_server import LlamaServerManager
 
 logger = setup_logger(__name__)
@@ -21,7 +20,6 @@ class DiscordBot:
     def __init__(self):
         self.db = DatabaseManager()
         self.config = Config(self.db)
-        self.voice_engine = VoiceEngine(self.config)
         self.llama_server = LlamaServerManager(self.config)
         self.bot = None
         self._modules = {}
@@ -50,7 +48,6 @@ class DiscordBot:
         try:
             from modules.memory import Memory
             from modules.ai_handler import AIHandler
-            from modules.voice_client import VoiceHandler
             from modules.setup import CharacterWizard
             from modules.commands import CommandHandler
 
@@ -68,8 +65,7 @@ class DiscordBot:
             await self._modules['ai_handler'].initialize()
 
             # 2. Registrar Cogs no Discord (Pycord add_cog is synchronous)
-            self.bot.add_cog(VoiceHandler(self.bot, self.voice_engine))
-            self.bot.add_cog(CharacterWizard(self.bot, self.db, self._modules['ai_handler'], self.voice_engine, self._modules['memory']))
+            self.bot.add_cog(CharacterWizard(self.bot, self.db, self._modules['ai_handler'], self._modules['memory']))
             self.bot.add_cog(CommandHandler(self.bot, self.config, self._modules['memory'], self._modules['ai_handler']))
             
             logger.info("Todos os módulos carregados com sucesso.")
@@ -137,16 +133,6 @@ class DiscordBot:
                     except: pass
 
                 logger.info(f"Resposta gerada ({len(full_response)} chars).")
-
-                # Resposta por Voz
-                if message.guild and message.guild.voice_client:
-                    logger.debug("Encaminhando resposta para VoiceHandler...")
-                    voice_cog = self.bot.get_cog("VoiceHandler")
-                    if voice_cog:
-                        processed_text, sentiment = self._modules['ai_handler'].extract_sentiment(full_response)
-                        await voice_cog.speak(processed_text, sentiment=sentiment, vc=message.guild.voice_client)
-                    else:
-                        logger.warning("VoiceHandler cog não encontrado!")
 
             except Exception as e:
                 logger.error(f"Erro ao processar resposta: {e}", exc_info=True)

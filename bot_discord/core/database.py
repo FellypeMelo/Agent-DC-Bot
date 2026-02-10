@@ -41,7 +41,6 @@ class DatabaseManager:
                 affinity REAL DEFAULT 0.0,
                 mood TEXT DEFAULT 'neutral',
                 interactions INTEGER DEFAULT 0,
-                interruption_count INTEGER DEFAULT 0,
                 first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 metadata TEXT DEFAULT '{}'
@@ -94,7 +93,6 @@ class DatabaseManager:
                 social_json TEXT,
                 interaction_json TEXT,
                 technical_json TEXT,
-                voice_dna BLOB,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -119,14 +117,6 @@ class DatabaseManager:
         await self._db.execute(
             "INSERT OR REPLACE INTO settings (key, value, blob_value) VALUES (?, ?, ?)", 
             (key, str(value) if value is not None else None, blob_value)
-        )
-        await self._db.commit()
-
-    async def increment_interruptions(self, user_id):
-        """Incrementa o contador de vezes que este usuário interrompeu o bot."""
-        await self._db.execute(
-            "UPDATE users SET interruption_count = interruption_count + 1 WHERE user_id = ?", 
-            (str(user_id),)
         )
         await self._db.commit()
 

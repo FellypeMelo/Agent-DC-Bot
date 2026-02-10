@@ -48,20 +48,6 @@ def test_ajuda_sends_embed(command_handler):
     asyncio.run(run_test())
 
 
-def test_status_includes_tts_state(command_handler):
-    async def run_test():
-        ctx = AsyncMock()
-        voice_engine = SimpleNamespace(kokoro=True, model=None)
-        voice_cog = SimpleNamespace(voice_engine=voice_engine)
-        command_handler.bot.get_cog.return_value = voice_cog
-        await command_handler.status.callback(command_handler, ctx)
-        ctx.send.assert_called_once()
-        _, kwargs = ctx.send.call_args
-        assert "embed" in kwargs
-
-    asyncio.run(run_test())
-
-
 def test_limpar_clears_history(command_handler):
     async def run_test():
         ctx = AsyncMock()
